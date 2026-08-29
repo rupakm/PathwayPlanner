@@ -33,6 +33,7 @@ from pathwayplanner.backends.toy import (
     wolfe_quapp_gradient,
     wolfe_quapp_potential,
 )
+from pathwayplanner.cv import EuclideanCV
 from pathwayplanner.evaluation import (
     delta_comp,
     estimate_outcomes,
@@ -56,6 +57,11 @@ def progress_cv(frame: np.ndarray) -> float:
     return float(np.dot(np.asarray(frame) - MIN_A, axis))
 
 
+# CV spaces: the full 2D landscape and the 1D A->B axis projection.
+XY_SPACE = EuclideanCV(lambda f: np.asarray(f, dtype=float)[:2], dim=2)
+AXIS_SPACE = EuclideanCV(lambda f: np.array([progress_cv(f)]), dim=1)
+
+
 class CrossAction(Action):
     """Biased search for the A -> B transition."""
 
@@ -74,7 +80,7 @@ class CrossAction(Action):
         push = self.bias_strength * axis
         return [
             Implementation(
-                cv=progress_cv,
+                cv=XY_SPACE,
                 bias=lambda x: push,
                 n_steps=self.n_steps,
                 n_replicas=self.n_replicas,
@@ -87,7 +93,8 @@ class CrossAction(Action):
         classifier = ChannelClassifier(
             target=in_basin(MIN_B),
             alternatives={},
-            cv=progress_cv,
+            space=XY_SPACE,
+            target_point=MIN_B,
             delta=float(np.linalg.norm(MIN_B - MIN_A)),
         )
         return classifier.classify(initial_state, trajectories)
@@ -150,7 +157,7 @@ def main() -> int:
     # 3. delta_comp: cross (weaker bias, heterogeneous outcomes) then relax.
     backend, start, _ = fresh_step(seed=3000, bias=1.8)
     cross = CrossAction(bias_strength=1.8, n_steps=n_steps, n_replicas=6)
-    relax = RelaxAction(cv=progress_cv, tolerance=0.6, n_steps=2000, n_replicas=4)
+    relax = RelaxAction(space=AXIS_SPACE, tolerance=0.6, n_steps=2000, n_replicas=4)
     p1 = make_step(backend, cross, budget)
     p2 = make_step(backend, relax, budget)
 

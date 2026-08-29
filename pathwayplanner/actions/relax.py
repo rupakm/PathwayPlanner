@@ -9,7 +9,7 @@ reported so recipes can recover).
 
 from __future__ import annotations
 
-from typing import Callable, Sequence
+from typing import Sequence
 
 import numpy as np
 
@@ -17,23 +17,25 @@ from pathwayplanner.actions.base import Action, ActionResult, Outcome
 from pathwayplanner.actions.registry import register
 from pathwayplanner.backends.base import Trajectory
 from pathwayplanner.compiler.base import Implementation
+from pathwayplanner.cv import CVSpace
 from pathwayplanner.states import State
 
 
 @register("relax")
 class RelaxAction(Action):
-    """Unbiased bursts; stable when |cv(end) - cv(start)| <= tolerance."""
+    """Unbiased bursts; stable when the CV-space distance travelled stays
+    within tolerance (periodicity handled by the CVSpace metric)."""
 
     name = "relax"
 
     def __init__(
         self,
-        cv: Callable[[np.ndarray], float],
+        space: CVSpace,
         tolerance: float,
         n_steps: int = 500,
         n_replicas: int = 4,
     ):
-        self.cv = cv
+        self.space = space
         self.tolerance = tolerance
         self.n_steps = n_steps
         self.n_replicas = n_replicas
@@ -44,7 +46,7 @@ class RelaxAction(Action):
     def propose(self, state: State) -> Sequence[Implementation]:
         return [
             Implementation(
-                cv=self.cv,
+                cv=self.space,
                 bias=None,
                 n_steps=self.n_steps,
                 n_replicas=self.n_replicas,
@@ -54,7 +56,7 @@ class RelaxAction(Action):
     def evaluate(
         self, initial_state: State, trajectories: list[Trajectory]
     ) -> ActionResult:
-        start_value = self.cv(np.asarray(initial_state.features, dtype=float))
+        cv_start = self.space.project(np.asarray(initial_state.features, dtype=float))
         drifts: list[tuple[float, State]] = []
         total_cost = 0.0
         for trajectory in trajectories:
@@ -65,7 +67,7 @@ class RelaxAction(Action):
                 if trajectory.configurations is not None
                 else final
             )
-            drift = abs(self.cv(final) - start_value)
+            drift = self.space.distance(cv_start, self.space.project(final))
             drifts.append((drift, State(configuration=configuration, features=np.asarray(final))))
         drifts.sort(key=lambda pair: pair[0])
         n_stable = sum(1 for drift, _ in drifts if drift <= self.tolerance)

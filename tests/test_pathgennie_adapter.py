@@ -17,6 +17,7 @@ from pathwayplanner.backends.pathgennie import (  # noqa: E402
     run_driver_search,
     search_to_action_result,
 )
+from pathwayplanner.cv import EuclideanCV  # noqa: E402
 
 # Wolfe-Quapp minima (same surface in pathgennie.core.toy and our toy backend).
 MIN_A = np.array([-1.174, 1.477])
@@ -28,13 +29,16 @@ def projection(coords: np.ndarray) -> np.ndarray:
     return np.asarray(coords, dtype=float).reshape(-1, 3)[0, :2]
 
 
+SPACE = EuclideanCV(projection, dim=2)
+
+
 def near_b(coords: np.ndarray) -> bool:
-    return bool(np.linalg.norm(projection(coords) - MIN_B) < 0.4)
+    return bool(SPACE.distance(SPACE.project(coords), MIN_B) < 0.4)
 
 
 def make_spec(max_cycle=60):
     return DriverSearchSpec(
-        projection=projection,
+        space=SPACE,
         event=near_b,
         target_cv=MIN_B,
         tau1=150,

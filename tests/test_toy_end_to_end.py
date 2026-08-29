@@ -12,11 +12,10 @@ from pathwayplanner import Budget, Implementation, Outcome, State
 from pathwayplanner.actions import Action, register, create, available
 from pathwayplanner.backends import ToyBackend
 from pathwayplanner.compiler import RuleBasedCompiler
+from pathwayplanner.cv import EuclideanCV
 from pathwayplanner.outcomes import ThresholdClassifier
 
-
-def x_coordinate(frame: np.ndarray) -> float:
-    return float(frame[0])
+X_SPACE = EuclideanCV(lambda f: np.asarray(f, dtype=float)[:1], dim=1)
 
 
 @register("cross_barrier")
@@ -27,7 +26,9 @@ class CrossBarrierAction(Action):
 
     def __init__(self, delta: float = 1.5):
         self.delta = delta
-        self.classifier = ThresholdClassifier(cv=x_coordinate, delta=delta)
+        self.classifier = ThresholdClassifier(
+            space=X_SPACE, target_point=np.array([1.0]), delta=delta
+        )
 
     def precondition(self, state: State) -> bool:
         return state.features[0] < 0.0
@@ -36,7 +37,7 @@ class CrossBarrierAction(Action):
         # A gentle constant push in +x; the toy stand-in for a weak bias.
         return [
             Implementation(
-                cv=x_coordinate,
+                cv=X_SPACE,
                 bias=lambda x: np.array([6.0, 0.0]),
                 n_steps=2000,
                 n_replicas=8,
@@ -91,7 +92,7 @@ def test_rule_based_compiler_falls_back_to_proposal():
     assert impl.n_replicas == 8
 
     # A rule overrides the proposal.
-    small = Implementation(cv=x_coordinate, n_steps=10, n_replicas=1)
+    small = Implementation(cv=X_SPACE, n_steps=10, n_replicas=1)
     compiler.add_rule(lambda s, a: True, lambda s, a: small)
     assert compiler.compile(start, action) is small
 
@@ -100,7 +101,7 @@ def test_backend_reproducible_with_seed():
     def run_once():
         backend = ToyBackend(seed=123)
         start = backend.make_state(np.array([-1.0, 0.0]))
-        impl = Implementation(cv=x_coordinate, n_steps=50, n_replicas=2)
+        impl = Implementation(cv=X_SPACE, n_steps=50, n_replicas=2)
         return backend.run_bursts([start], impl, Budget())
 
     a, b = run_once(), run_once()

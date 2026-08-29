@@ -8,9 +8,10 @@ count, and a selection policy.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Callable, Protocol, runtime_checkable
+from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
 
-import numpy as np
+if TYPE_CHECKING:
+    from pathwayplanner.cv import CVSpace
 
 
 @dataclass
@@ -18,7 +19,8 @@ class Implementation:
     """One concrete physical realization of a structural action.
 
     Attributes:
-        cv: Maps a configuration-space point to a progress coordinate.
+        cv: The CV space (projection plus metric) the implementation
+            operates in; see pathwayplanner.cv.CVSpace.
         bias: Optional intervention; backend-specific meaning (e.g. a force
             callable for the toy backend, a bias spec for an MD backend).
         n_steps: Duration of each burst in backend steps.
@@ -27,7 +29,7 @@ class Implementation:
         params: Implementation-specific extras.
     """
 
-    cv: Callable[[np.ndarray], float]
+    cv: "CVSpace"
     bias: Any = None
     n_steps: int = 100
     n_replicas: int = 8

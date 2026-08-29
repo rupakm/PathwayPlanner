@@ -1,19 +1,25 @@
 """Trajectory -> Outcome classification.
 
 Classifiers turn a burst ensemble into the ActionResult an action
-reports. ThresholdClassifier covers the common scalar-event case:
-success when a progress coordinate advances by at least `delta`.
+reports. All CV geometry (projection, periodicity, distances) comes
+from the CVSpace on the classifier; classifiers never compute
+differences of CV components themselves.
+
+Progress is defined relative to a target point in CV space:
+progress(x) = d(cv_start, target) - d(cv_x, target), which is
+well-defined in any dimension and under periodicity.
 """
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Callable, Protocol, runtime_checkable
 
 import numpy as np
 
 from pathwayplanner.actions.base import ActionResult, Outcome
 from pathwayplanner.backends.base import Trajectory
+from pathwayplanner.cv import CVSpace
 from pathwayplanner.states import State
 
 
@@ -26,20 +32,87 @@ class OutcomeClassifier(Protocol):
 
 
 @dataclass
+class ThresholdClassifier(OutcomeClassifier):
+    """Success when progress toward `target_point` reaches delta; partial
+    above `partial_fraction * delta`; failure otherwise.
+
+    Successor states are the best frame of each qualifying trajectory,
+    ranked by progress.
+    """
+
+    space: CVSpace
+    target_point: np.ndarray
+    delta: float
+    partial_fraction: float = 0.5
+
+    def _progress(self, cv_start: np.ndarray, cv: np.ndarray) -> float:
+        target = np.asarray(self.target_point, dtype=float)
+        return self.space.distance(cv_start, target) - self.space.distance(cv, target)
+
+    def classify(
+        self, initial_state: State, trajectories: list[Trajectory]
+    ) -> ActionResult:
+        cv_start = self.space.project(np.asarray(initial_state.features, dtype=float))
+        candidates: list[tuple[float, State]] = []
+        total_cost = 0.0
+        for trajectory in trajectories:
+            total_cost += trajectory.cost
+            progresses = np.array(
+                [self._progress(cv_start, self.space.project(f)) for f in trajectory.frames]
+            )
+            best_idx = int(np.argmax(progresses))
+            frame = trajectory.frames[best_idx]
+            configuration = (
+                trajectory.configurations[best_idx]
+                if trajectory.configurations is not None
+                else frame
+            )
+            candidates.append(
+                (
+                    float(progresses[best_idx]),
+                    State(configuration=configuration, features=np.asarray(frame)),
+                )
+            )
+        candidates.sort(key=lambda pair: pair[0], reverse=True)
+        best_progress = candidates[0][0] if candidates else 0.0
+
+        if best_progress >= self.delta:
+            outcome = Outcome.SUCCESS
+            keep = [s for p, s in candidates if p >= self.delta]
+        elif best_progress >= self.partial_fraction * self.delta:
+            outcome = Outcome.PARTIAL
+            keep = [candidates[0][1]]
+        else:
+            outcome = Outcome.FAILURE
+            keep = []
+
+        return ActionResult(
+            outcome=outcome,
+            successor_states=keep,
+            trajectories=trajectories,
+            event_scores={"best_progress": best_progress, "target": self.delta},
+            cost=total_cost,
+        )
+
+
+@dataclass
 class ChannelClassifier(OutcomeClassifier):
     """Region-based classification with alternative-transition detection.
 
-    Walks each trajectory frame by frame; the first region hit (target or
-    a named alternative) classifies that trajectory. Ensemble verdict:
-    SUCCESS when any trajectory reached the target, else ALTERNATIVE when
-    any reached an alternative region (channel name in metadata), else
-    the ThresholdClassifier progress fallback (PARTIAL / FAILURE).
+    Region predicates operate on CV vectors (`space.project` of each
+    frame). Walks each trajectory frame by frame; the first region hit
+    (target or a named alternative) classifies that trajectory. Ensemble
+    verdict: SUCCESS when any trajectory reached the target, else
+    ALTERNATIVE when any reached an alternative region (channel name in
+    metadata), else the ThresholdClassifier progress fallback toward
+    `target_point` (PARTIAL / FAILURE).
     """
 
     target: Callable[[np.ndarray], bool]
     alternatives: dict[str, Callable[[np.ndarray], bool]]
-    cv: Callable[[np.ndarray], float]
-    delta: float
+    space: CVSpace
+    target_point: np.ndarray = field(default=None)  # type: ignore[assignment]
+    delta: float = 0.0
     partial_fraction: float = 0.5
 
     def classify(
@@ -88,7 +161,10 @@ class ChannelClassifier(OutcomeClassifier):
                 metadata={"channel": dominant, "alternative_channels": channel_counts},
             )
         fallback = ThresholdClassifier(
-            cv=self.cv, delta=self.delta, partial_fraction=self.partial_fraction
+            space=self.space,
+            target_point=self.target_point,
+            delta=self.delta,
+            partial_fraction=self.partial_fraction,
         ).classify(initial_state, trajectories)
         # Region semantics own SUCCESS; progress alone can at most be PARTIAL.
         if fallback.outcome is Outcome.SUCCESS:
@@ -97,64 +173,10 @@ class ChannelClassifier(OutcomeClassifier):
 
     def _first_hit(self, trajectory: Trajectory) -> tuple[str, int] | None:
         for index, frame in enumerate(trajectory.frames):
-            if self.target(frame):
+            cv = self.space.project(frame)
+            if self.target(cv):
                 return ("target", index)
             for name, predicate in self.alternatives.items():
-                if predicate(frame):
+                if predicate(cv):
                     return (name, index)
         return None
-
-
-@dataclass
-class ThresholdClassifier(OutcomeClassifier):
-    """Success when max progress along `cv` reaches delta; partial above
-    `partial_fraction * delta`; failure otherwise.
-
-    Successor states are the best frame of each qualifying trajectory,
-    ranked by progress.
-    """
-
-    cv: Callable[[np.ndarray], float]
-    delta: float
-    partial_fraction: float = 0.5
-
-    def classify(
-        self, initial_state: State, trajectories: list[Trajectory]
-    ) -> ActionResult:
-        start_value = self.cv(np.asarray(initial_state.features, dtype=float))
-        candidates: list[tuple[float, State]] = []
-        total_cost = 0.0
-        for trajectory in trajectories:
-            total_cost += trajectory.cost
-            values = np.array([self.cv(frame) for frame in trajectory.frames])
-            best_idx = int(np.argmax(values))
-            progress = float(values[best_idx] - start_value)
-            frame = trajectory.frames[best_idx]
-            configuration = (
-                trajectory.configurations[best_idx]
-                if trajectory.configurations is not None
-                else frame
-            )
-            candidates.append(
-                (progress, State(configuration=configuration, features=np.asarray(frame)))
-            )
-        candidates.sort(key=lambda pair: pair[0], reverse=True)
-        best_progress = candidates[0][0] if candidates else 0.0
-
-        if best_progress >= self.delta:
-            outcome = Outcome.SUCCESS
-            keep = [s for p, s in candidates if p >= self.delta]
-        elif best_progress >= self.partial_fraction * self.delta:
-            outcome = Outcome.PARTIAL
-            keep = [candidates[0][1]]
-        else:
-            outcome = Outcome.FAILURE
-            keep = []
-
-        return ActionResult(
-            outcome=outcome,
-            successor_states=keep,
-            trajectories=trajectories,
-            event_scores={"best_progress": best_progress, "target": self.delta},
-            cost=total_cost,
-        )

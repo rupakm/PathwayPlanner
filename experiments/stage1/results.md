@@ -4,8 +4,8 @@ Parameters: kT=0.7, dt=1e-3, n_steps=4000, replicas=6, bias=2.5, batches of 30, 
 
 ## 1. Reproducibility
 - Batch 1 outcomes: {'partial': 6, 'success': 24}
-- Batch 2 outcomes: {'success': 27, 'failure': 1, 'partial': 2}
-- JS divergence: **0.0440** (gate: < 0.1)
+- Batch 2 outcomes: {'success': 27, 'failure': 2, 'partial': 1}
+- JS divergence: **0.0831** (gate: < 0.1)
 - Gate: PASS
 
 ## 2. Contract calibration
@@ -15,9 +15,9 @@ Parameters: kT=0.7, dt=1e-3, n_steps=4000, replicas=6, bias=2.5, batches of 30, 
 - Gate: PASS
 
 ## 3. delta_comp (cross ; relax)
-- Fine abstraction: actual=0.450, predicted=0.522, **delta=0.072**
-  - class weights: {(True, np.False_): 0.39, (True, np.True_): 0.19, (False, np.True_): 0.34, (False, np.False_): 0.02}
-- Coarse abstraction: actual=0.520, predicted=0.797, **delta=0.277**
+- Fine abstraction: actual=0.440, predicted=0.505, **delta=0.065**
+  - class weights: {(False, np.True_): 0.21, (True, np.False_): 0.4, (True, np.True_): 0.19, (False, np.False_): 0.03}
+- Coarse abstraction: actual=0.540, predicted=0.000, **delta=0.540**
 - Fine <= coarse: PASS
 
 ## 4. Committor validation of success labels
