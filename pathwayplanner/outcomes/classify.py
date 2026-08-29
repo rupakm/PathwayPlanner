@@ -26,6 +26,86 @@ class OutcomeClassifier(Protocol):
 
 
 @dataclass
+class ChannelClassifier(OutcomeClassifier):
+    """Region-based classification with alternative-transition detection.
+
+    Walks each trajectory frame by frame; the first region hit (target or
+    a named alternative) classifies that trajectory. Ensemble verdict:
+    SUCCESS when any trajectory reached the target, else ALTERNATIVE when
+    any reached an alternative region (channel name in metadata), else
+    the ThresholdClassifier progress fallback (PARTIAL / FAILURE).
+    """
+
+    target: Callable[[np.ndarray], bool]
+    alternatives: dict[str, Callable[[np.ndarray], bool]]
+    cv: Callable[[np.ndarray], float]
+    delta: float
+    partial_fraction: float = 0.5
+
+    def classify(
+        self, initial_state: State, trajectories: list[Trajectory]
+    ) -> ActionResult:
+        target_hits: list[State] = []
+        channel_counts: dict[str, int] = {}
+        alternative_hits: list[State] = []
+        total_cost = 0.0
+        for trajectory in trajectories:
+            total_cost += trajectory.cost
+            hit = self._first_hit(trajectory)
+            if hit is None:
+                continue
+            channel, index = hit
+            frame = trajectory.frames[index]
+            configuration = (
+                trajectory.configurations[index]
+                if trajectory.configurations is not None
+                else frame
+            )
+            state = State(configuration=configuration, features=np.asarray(frame))
+            if channel == "target":
+                target_hits.append(state)
+            else:
+                channel_counts[channel] = channel_counts.get(channel, 0) + 1
+                alternative_hits.append(state)
+
+        if target_hits:
+            return ActionResult(
+                outcome=Outcome.SUCCESS,
+                successor_states=target_hits,
+                trajectories=trajectories,
+                event_scores={"n_target_hits": float(len(target_hits))},
+                cost=total_cost,
+                metadata={"alternative_channels": channel_counts},
+            )
+        if alternative_hits:
+            dominant = max(channel_counts, key=channel_counts.get)
+            return ActionResult(
+                outcome=Outcome.ALTERNATIVE,
+                successor_states=alternative_hits,
+                trajectories=trajectories,
+                event_scores={"n_alternative_hits": float(len(alternative_hits))},
+                cost=total_cost,
+                metadata={"channel": dominant, "alternative_channels": channel_counts},
+            )
+        fallback = ThresholdClassifier(
+            cv=self.cv, delta=self.delta, partial_fraction=self.partial_fraction
+        ).classify(initial_state, trajectories)
+        # Region semantics own SUCCESS; progress alone can at most be PARTIAL.
+        if fallback.outcome is Outcome.SUCCESS:
+            fallback.outcome = Outcome.PARTIAL
+        return fallback
+
+    def _first_hit(self, trajectory: Trajectory) -> tuple[str, int] | None:
+        for index, frame in enumerate(trajectory.frames):
+            if self.target(frame):
+                return ("target", index)
+            for name, predicate in self.alternatives.items():
+                if predicate(frame):
+                    return (name, index)
+        return None
+
+
+@dataclass
 class ThresholdClassifier(OutcomeClassifier):
     """Success when max progress along `cv` reaches delta; partial above
     `partial_fraction * delta`; failure otherwise.

@@ -104,12 +104,23 @@ Include only if it works cleanly.
 
 ## Open questions
 
-- Repo layout for the planning-language implementation (separate repo vs in-tree). See
-  logistics discussion 2026-08-29.
 - Which AdK force field / starting structures (1AKE closed, 4AKE open)?
 - Budget estimate for Paper 1 (GPU-hours per action × repeats).
 - Who owns the outcome-classifier definitions — per-action code or declarative spec?
 
 ## Decision log
 
-- (pending)
+- **2026-08-29 — Repo layout:** the planning language lives in its own repo
+  (PathwayPlanner), with Trails-MD and PathGennie as external backends behind
+  adapter modules — the only code allowed to import them. Rationale: enforces
+  the backend-agnostic claim, keeps paper artifacts separable, and PathGennie
+  is a third-party repo anyway.
+- **2026-08-29 — Stage 1 gate: PASS.** Wolfe-Quapp evaluation
+  (`experiments/stage1/results.md`): outcome distributions reproducible across
+  independent seed batches (JS divergence 0.044, gate 0.1); contract success
+  rates calibrated on held-out runs (error 0.10, gate 0.2); success labels
+  validated against the grid-exact reference committor (all successors at
+  q = 1.0). First compositionality datum: a fine, channel-aware abstraction
+  gives delta_comp 0.072 vs 0.277 for a coarse one-class abstraction —
+  abstraction granularity measurably controls composition predictivity, as
+  hypothesized. Proceed to Stage 2 (Trails-MD burst API + adapter).

@@ -19,9 +19,74 @@ from pathwayplanner.states import State
 PotentialGradient = Callable[[np.ndarray], np.ndarray]
 
 
+def double_well_potential(x: np.ndarray) -> float:
+    """V(x, y) = (x^2 - 1)^2 + y^2: wells at (-1, 0), (1, 0)."""
+    return float((x[0] ** 2 - 1.0) ** 2 + x[1] ** 2)
+
+
 def double_well_gradient(x: np.ndarray) -> np.ndarray:
-    """Gradient of V(x, y) = (x^2 - 1)^2 + y^2: wells at (-1, 0), (1, 0)."""
+    """Gradient of `double_well_potential`."""
     return np.array([4.0 * x[0] * (x[0] ** 2 - 1.0), 2.0 * x[1]])
+
+
+def wolfe_quapp_potential(x: np.ndarray) -> float:
+    """Wolfe-Quapp surface: two minima connected by two saddle channels.
+
+    Same parameterization as the Trails-MD / PathGennie toy benchmarks.
+    """
+    return float(
+        x[0] ** 4 + x[1] ** 4 - 2.0 * x[0] ** 2 - 4.0 * x[1] ** 2
+        + x[0] * x[1] + 0.3 * x[0] + 0.1 * x[1]
+    )
+
+
+def wolfe_quapp_gradient(x: np.ndarray) -> np.ndarray:
+    """Gradient of `wolfe_quapp_potential`."""
+    return np.array(
+        [
+            4.0 * x[0] ** 3 - 4.0 * x[0] + x[1] + 0.3,
+            4.0 * x[1] ** 3 - 8.0 * x[1] + x[0] + 0.1,
+        ]
+    )
+
+
+def three_hole_potential(x: np.ndarray) -> float:
+    """Metzner-style three-hole surface: wells at (+-1, 0), an upper channel
+    through the shallow hole near (0, 1.5), and a direct lower channel.
+    """
+    g = np.exp
+    return float(
+        3.0 * g(-x[0] ** 2 - (x[1] - 1.0 / 3.0) ** 2)
+        - 3.0 * g(-x[0] ** 2 - (x[1] - 5.0 / 3.0) ** 2)
+        - 5.0 * g(-((x[0] - 1.0) ** 2) - x[1] ** 2)
+        - 5.0 * g(-((x[0] + 1.0) ** 2) - x[1] ** 2)
+        + 0.2 * x[0] ** 4
+        + 0.2 * (x[1] - 1.0 / 3.0) ** 4
+    )
+
+
+def three_hole_gradient(x: np.ndarray) -> np.ndarray:
+    """Gradient of `three_hole_potential`."""
+    g = np.exp
+    a = 3.0 * g(-x[0] ** 2 - (x[1] - 1.0 / 3.0) ** 2)
+    b = -3.0 * g(-x[0] ** 2 - (x[1] - 5.0 / 3.0) ** 2)
+    c = -5.0 * g(-((x[0] - 1.0) ** 2) - x[1] ** 2)
+    d = -5.0 * g(-((x[0] + 1.0) ** 2) - x[1] ** 2)
+    dx = (
+        a * (-2.0 * x[0])
+        + b * (-2.0 * x[0])
+        + c * (-2.0 * (x[0] - 1.0))
+        + d * (-2.0 * (x[0] + 1.0))
+        + 0.8 * x[0] ** 3
+    )
+    dy = (
+        a * (-2.0 * (x[1] - 1.0 / 3.0))
+        + b * (-2.0 * (x[1] - 5.0 / 3.0))
+        + c * (-2.0 * x[1])
+        + d * (-2.0 * x[1])
+        + 0.8 * (x[1] - 1.0 / 3.0) ** 3
+    )
+    return np.array([dx, dy])
 
 
 @dataclass
