@@ -161,3 +161,16 @@ Include only if it works cleanly.
   (pre-existing test failure root-caused to a torch-import BLAS/OpenMP
   runtime sensitivity on tie-broken k-means lattice data plus an
   over-strong all-cells gate; test-only fix, 325/325 green).
+- **2026-08-30 — Z-channel result: composition is necessary, not only
+  sufficient.** New toy landscape (`z_channel_potential`): a hairpin channel
+  A=(0,0) -> (2,0) -> (2,1) -> B=(0,1) whose legs run +x, +y, -x, with the
+  direct shortcut sealed by a ~40 kT wall. Because leg 1 and leg 3 have
+  opposite x direction, any single linear CV has non-positive progress on one
+  of them — single-CV failure holds by construction, not by tuning. Measured
+  (`experiments/z_channel/results.md`, N=30 per strategy, equal budgets):
+  single-CV actions 0/30 and 0/30 (net-direction bias pins against the wall;
+  leg-1 bias stalls at the first corner as PARTIAL); the three-leg recipe
+  with a separate CV per leg and a direction reversal succeeds 30/30. First
+  demonstration that a high-level plan that changes direction mid-path is
+  required and sufficient — the language's composition claim in its sharpest
+  toy form. Candidate headline figure for Paper 1.

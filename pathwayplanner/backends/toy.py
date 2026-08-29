@@ -89,6 +89,62 @@ def three_hole_gradient(x: np.ndarray) -> np.ndarray:
     return np.array([dx, dy])
 
 
+# --- Z-channel (hairpin): a minimum-energy path with a direction reversal ---
+#
+# The path is the polyline A=(0,0) -> (2,0) -> (2,1) -> B=(0,1): leg 1 runs
+# +x, leg 2 +y, leg 3 -x. The net A->B displacement is pure +y, but any
+# constant linear bias has non-positive progress on leg 1 or leg 3 (their x
+# directions are opposite), so no single linear CV can drive the whole
+# transition; traversal requires switching CVs at the corners. The direct
+# A->B shortcut crosses a wall of height h * 0.5^2, far above kT in the
+# intended regime (kT ~ 0.15, h = 25).
+
+Z_CHANNEL_A = np.array([0.0, 0.0])
+Z_CHANNEL_B = np.array([0.0, 1.0])
+_Z_PATH = np.array([[0.0, 0.0], [2.0, 0.0], [2.0, 1.0], [0.0, 1.0]])
+_Z_WALL = 25.0
+_Z_WELL_DEPTH = 1.5
+_Z_WELL_SIGMA = 0.2
+
+
+def _nearest_on_path(r: np.ndarray) -> np.ndarray:
+    """Nearest point to r on the Z-channel polyline."""
+    best, best_d2 = None, np.inf
+    for p, q in zip(_Z_PATH[:-1], _Z_PATH[1:]):
+        seg = q - p
+        t = float(np.clip(np.dot(r - p, seg) / np.dot(seg, seg), 0.0, 1.0))
+        candidate = p + t * seg
+        d2 = float(np.dot(r - candidate, r - candidate))
+        if d2 < best_d2:
+            best, best_d2 = candidate, d2
+    return best
+
+
+def z_channel_potential(x: np.ndarray) -> float:
+    """V = wall * d_path^2 - Gaussian wells at the two ends A and B."""
+    r = np.asarray(x, dtype=float)[:2]
+    d2 = float(np.sum((r - _nearest_on_path(r)) ** 2))
+    wells = 0.0
+    for center in (Z_CHANNEL_A, Z_CHANNEL_B):
+        s2 = float(np.sum((r - center) ** 2))
+        wells -= _Z_WELL_DEPTH * np.exp(-s2 / (2.0 * _Z_WELL_SIGMA**2))
+    return _Z_WALL * d2 + wells
+
+
+def z_channel_gradient(x: np.ndarray) -> np.ndarray:
+    """Gradient of `z_channel_potential` (valid a.e.; at equidistant loci the
+    nearest-segment branch is picked, a subgradient choice)."""
+    r = np.asarray(x, dtype=float)[:2]
+    grad = 2.0 * _Z_WALL * (r - _nearest_on_path(r))
+    for center in (Z_CHANNEL_A, Z_CHANNEL_B):
+        delta = r - center
+        s2 = float(np.dot(delta, delta))
+        grad += (
+            _Z_WELL_DEPTH / _Z_WELL_SIGMA**2
+        ) * np.exp(-s2 / (2.0 * _Z_WELL_SIGMA**2)) * delta
+    return grad
+
+
 @dataclass
 class ToyBackend(Backend):
     """Euler–Maruyama integrator: dx = -grad V dt + bias dt + noise."""
