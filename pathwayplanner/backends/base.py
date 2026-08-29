@@ -14,13 +14,16 @@ import numpy as np
 
 from pathwayplanner.states import State
 
-# A trajectory is (n_frames, n_dims) in the backend's configuration space,
-# plus optional per-frame handles for full-configuration recovery.
+# Frame convention: Trajectory.frames and State.features hold configuration
+# features in the backend's native form (a 2D point for the toy backend,
+# an (n_atoms, 3) Angstrom array for MD backends). CV vectors exist only
+# transiently, produced by a CVSpace.project at the point of use.
 
 
 @dataclass
 class Trajectory:
-    """One burst: projected frames plus opaque configuration handles."""
+    """One burst: per-frame configuration features plus opaque
+    configuration handles for restarting."""
 
     frames: np.ndarray
     configurations: Sequence[Any] | None = None

@@ -55,7 +55,7 @@ def test_search_converges_to_target_event():
         engine, MIN_A, make_spec(), seed=1, budget=Budget(max_steps=10_000_000)
     )
     assert result.converged
-    final_cv = result.trajectory.frames[-1]
+    final_cv = SPACE.project(result.trajectory.frames[-1])
     assert np.linalg.norm(final_cv - MIN_B) < 0.4
     # Configurations retained: full coordinates per saved frame, restartable.
     assert result.trajectory.configurations is not None
@@ -81,8 +81,8 @@ def test_search_to_action_result_success_and_budget_exceeded():
     action_result = search_to_action_result(ok)
     assert action_result.outcome is Outcome.SUCCESS
     assert action_result.best_state is not None
-    # Successor features are the CV of the converged frame.
-    assert np.linalg.norm(action_result.best_state.features - MIN_B) < 0.4
+    # Successor features are the converged frame's coordinates.
+    assert np.linalg.norm(SPACE.project(action_result.best_state.features) - MIN_B) < 0.4
 
     capped = run_driver_search(
         engine, MIN_A, make_spec(), seed=4, budget=Budget(max_steps=2700)

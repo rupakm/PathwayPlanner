@@ -85,9 +85,10 @@ class DriverSearchSpec:
 class DriverSearchResult:
     """Outcome of one driver search.
 
-    `trajectory.frames` holds the CV projection of each saved anchor frame;
-    `trajectory.configurations` holds the corresponding full coordinate
-    arrays, each a valid restart point via Engine.create_handle.
+    `trajectory.frames` holds the full coordinates of each saved anchor
+    frame (configuration features; consumers project them through a
+    CVSpace); `trajectory.configurations` holds the same arrays, each a
+    valid restart point via Engine.create_handle.
     """
 
     trajectory: Trajectory
@@ -160,7 +161,9 @@ def run_driver_search(
 
     n_cycles = int(len(metrics))
     configurations = [np.asarray(c) for c in coords_trajectory]
-    frames = np.array([spec.space.project(c) for c in configurations])
+    # Frames hold configuration features (coordinates); consumers project
+    # them through the CVSpace when needed.
+    frames = np.asarray(coords_trajectory, dtype=float)
     # Every committed anchor was tested against the event during the run,
     # so the final frame satisfies it iff the driver stopped by convergence.
     converged = bool(configurations) and bool(spec.event(configurations[-1]))
