@@ -142,3 +142,22 @@ Include only if it works cleanly.
   ensembles, while whole-search procedures enter through `Action.execute`
   overrides — the Implementation's selection policy rho is where the two
   families are distinguished.
+- **2026-08-29 — Stage 2 gate: PASS.** Alanine dipeptide (vacuum Amber14,
+  OpenMM CPU) through the Trails-MD burst API and TrailsMDBackend adapter
+  (`experiments/stage2/results.md`). Equilibration settled at C7eq
+  (-80, 81) deg; the biased `cross` action reached C7ax in 24/24 executions;
+  all six tested successors gave rollout q_hat = 1.0 and persisted in B for a
+  further 20 ps unbiased. The language layer ran unchanged from Stage 1 —
+  only the backend and CV definitions differ. Cost datum for the Paper 1
+  budget: 0.080 ns per cross execution; 1.58M integrator steps in 493 s
+  wall-clock on CPU (per-walker process overhead dominates at this system
+  size). Recorded limitations: the outcome distribution was degenerate
+  (all successes), so reproducibility/calibration gates passed trivially;
+  q_hat on first-entry frames is 1 partly by definition — a sharper
+  committor validation on pre-entry transition-region frames is deferred to
+  Stage 3, as is running the PathGennie implementation family on real MD.
+  Supporting fixes from this stage: Trails-MD branch `burst-api` (burst API
+  + OpenMM declarative bias) and branch `fix-committor-refinement`
+  (pre-existing test failure root-caused to a torch-import BLAS/OpenMP
+  runtime sensitivity on tie-broken k-means lattice data plus an
+  over-strong all-cells gate; test-only fix, 325/325 green).
