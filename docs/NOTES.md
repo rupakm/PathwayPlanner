@@ -124,3 +124,21 @@ Include only if it works cleanly.
   gives delta_comp 0.072 vs 0.277 for a coarse one-class abstraction —
   abstraction granularity measurably controls composition predictivity, as
   hypothesized. Proceed to Stage 2 (Trails-MD burst API + adapter).
+- **2026-08-29 — PathGennie integrates as an action implementation, not a
+  backend.** Examination of the PathGennie driver API showed no new library
+  interface is needed upstream: `PathGennieDriver(engine, progress,
+  convergence_fn).run(...)` already accepts a CV projection (ProgressVariable),
+  an event predicate (convergence_fn, evaluated on full coordinates each
+  cycle), a budget (max_cycle), and returns restartable successor
+  configurations. Because the driver's output is one sequentially correlated
+  anchor path (swarm -> softmax select -> commit, iterated), forcing it behind
+  `Backend.run_bursts` would misrepresent it as an independent-replica
+  ensemble. It is therefore exposed as a complete physical implementation of
+  an action (`backends/pathgennie.py`: `run_driver_search` +
+  `search_to_action_result`), supplying the unbiased selection-driven
+  implementation family for WP1's two-implementations-per-action requirement;
+  bias-based implementations come from the Trails-MD burst API. Consequence
+  for the architecture: `Backend.run_bursts` covers primitive replica
+  ensembles, while whole-search procedures enter through `Action.execute`
+  overrides — the Implementation's selection policy rho is where the two
+  families are distinguished.

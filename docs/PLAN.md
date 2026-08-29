@@ -59,6 +59,20 @@ language before touching MD.
   `trails_md/paths.py`).
 - Bias support: an OpenMM `CustomCVForce`-based restraint/pull spec as the
   first intervention type.
+- **PathGennie adapter (done 2026-08-29, commit `e298f29`):** integrated at the
+  driver level, not behind the `Backend.run_bursts` protocol. The PathGennie
+  driver (swarm of tau1 trials, softmax selection, tau2 commit, iterated to
+  convergence) produces one sequentially correlated anchor path rather than an
+  independent-replica ensemble, so it constitutes a complete physical
+  implementation of an action — it realizes the selection policy rho
+  internally. `backends/pathgennie.py` exposes `DriverSearchSpec` (projection,
+  event predicate on coordinates, optional CV target selecting
+  TargetMetric/EscapeMetric, driver parameters), `run_driver_search` (budget
+  caps the cycle count via the per-cycle step cost), and
+  `search_to_action_result` (convergence -> SUCCESS; non-convergence ->
+  BUDGET_EXCEEDED with the final anchor as successor). No upstream PathGennie
+  change was required: its programmatic driver API is sufficient, with the
+  event predicate serving as `convergence_fn`.
 
 **Evaluate:** alanine dipeptide — `explore` and `cross` actions over phi/psi.
 Same metrics as Stage 1, plus committor validation via `TabularCommittor` +
@@ -74,9 +88,11 @@ real MD unchanged.
 - Event specs: LID–CORE pseudo-dihedral / hinge angle, interface contact
   counts, RMSD to 1AKE (closed) / 4AKE (open).
 - Two implementations per action (design-doc requirement):
-  (a) adaptive short-burst via the Trails-MD backend;
-  (b) biased-CV via `CustomCVForce` or PLUMED (PathGennie's OPES machinery
-  as reference).
+  (a) biased-CV bursts via the Trails-MD backend (`CustomCVForce`);
+  (b) unbiased selection-driven search via the PathGennie driver adapter
+  (`run_driver_search`) — the two families differ in mechanism (bias force
+  vs trial selection), which is exactly the comparison the action compiler
+  must learn to make.
 - Outcome classifiers including `Unstable` (relaxation reverts the event)
   and `Alternative` (a different transition detected).
 
