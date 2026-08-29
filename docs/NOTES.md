@@ -174,3 +174,19 @@ Include only if it works cleanly.
   demonstration that a high-level plan that changes direction mid-path is
   required and sufficient — the language's composition claim in its sharpest
   toy form. Candidate headline figure for Paper 1.
+- **2026-08-30 — Ligand-unbinding benchmark selected: acetylcholinesterase /
+  huperzine A.** The protein-scale instance of the Z-channel claim. The ~20
+  Angstrom AChE gorge is curved and constricted, so the productive direction
+  changes between the deep-gorge leg (breaking Trp86 stacking), the
+  Tyr121/Phe330 constriction, and the exit past the peripheral anionic site —
+  a single distance-to-exit CV fails at the constriction. Chosen over
+  P450cam/camphor (richest pathway taxonomy, but protein-gated egress
+  entangles the ligand-path question with a conformational one) and T4L
+  L99A/benzene (cheapest and already Benchmark 2 here, but a compact cavity
+  rather than a long curved tunnel). Decisive advantage: Rydzewski et al.,
+  JCTC 2018, 14, 2843 supplies a published reference mechanism (front door
+  plus an Omega-loop side door), a rate, and independent evidence that linear
+  coordinates were inadequate — so the benchmark tests a real claim against
+  external ground truth, including whether the side door is discovered as an
+  `Alternative` outcome rather than scripted. Placed at Stage 3-4 on cost
+  grounds (~530 residues, ~100k atoms solvated). Details in PLAN.md.

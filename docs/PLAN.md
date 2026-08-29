@@ -114,6 +114,69 @@ only biased implementations work, that is Paper 1 content too, reframed.
 
 ---
 
+## Ligand-unbinding benchmark: acetylcholinesterase / huperzine A
+
+**Purpose.** The Z-channel toy (`experiments/z_channel/`) showed that a
+minimum-energy path with a direction reversal defeats every single linear CV
+while a leg-decomposed recipe succeeds. This benchmark is the protein-scale
+instance of the same claim: a ligand traversing a long, curved exit tunnel
+whose productive direction changes partway.
+
+**System.** Torpedo californica acetylcholinesterase with huperzine A. The
+ligand sits at the bottom of a ~20 Angstrom gorge, narrow and curved, lined
+by aromatic residues. Leaving by the front door requires (i) breaking the
+Trp86 stacking interaction at the anionic site, (ii) passing the
+Tyr121/Phe330 constriction, and (iii) exiting past the peripheral anionic
+site near Trp279 — three legs whose productive directions differ, so a
+single distance-to-exit coordinate stops working at the constriction.
+
+**Literature basis (a reference mechanism and rate exist).** Rydzewski,
+Jakubowski, Nowak and Grubmuller, *J. Chem. Theory Comput.* 2018, 14, 2843
+(doi:10.1021/acs.jctc.8b00173) studied huperzine A dissociation with ~4 us of
+unbiased and biased MD, memetic sampling for pathway determination,
+metadynamics for free energies, and maximum-likelihood rate estimation. Two
+results matter here: dissociation proceeds by two distinct routes — the front
+door along the gorge axis and a transient side door opened by the Omega-loop
+(residues 67-94) — and *nonlinear* reaction pathways were required, linear
+coordinates being inadequate. Earlier steered-MD work on the same system:
+Xu et al., *J. Am. Chem. Soc.* 2003, doi:10.1021/ja029775t.
+
+**Candidate recipe** (mid-path CV change plus a real Alternative branch):
+
+```text
+recipe unbind_hupA:
+    break_stacking(HUPA, TRP86)                  # stacking distance/angle CV
+    result = pass_constriction(TYR121, PHE330)   # gorge-axis progress CV
+    if result.success:
+        exit_gorge(PAS, TRP279)                  # different axis: distance to PAS
+    elif result.partial:
+        open_omega_loop(OMEGA)                   # the side-door alternative
+        exit_side_door()
+    relax()
+```
+
+**What it tests beyond the toy.** Separate CVs per leg and a direction change
+at the constriction (as in the Z-channel), plus a genuine `Alternative`
+outcome — the side door — with the published pathway split as ground truth.
+Staged approach: reproduce the front-door route with a two-leg recipe first,
+then test whether the side-door branch is *discovered* as an Alternative
+rather than scripted.
+
+**Alternatives considered.** *Cytochrome P450cam / camphor* has the richest
+pathway taxonomy (Ludemann, Lounnas and Wade's random-expulsion MD classes
+pw1, pw2a-c, pw3; pw2 later found thermodynamically preferred), but egress is
+protein-gated, entangling the ligand-path question with a conformational one.
+*T4 lysozyme L99A / benzene* is cheapest and already a community benchmark
+(four exit pathways by weighted-ensemble simulation), but its cavity is
+compact rather than a long curved tunnel, so the direction-change effect is
+weak; it already appears in this plan as Benchmark 2 for pathway diversity.
+
+**Placement and cost.** AChE is ~530 residues (solvated ~100k atoms), so this
+belongs at Stage 3-4, after the AdK vocabulary work, and requires the GPU
+budget that the Stage 2 cost table informs.
+
+---
+
 ## Stage 4 (weeks 14–24): Recipes and the Paper 1 experiment
 
 - The `open_LID` recipe in both orderings: weaken-then-open vs
