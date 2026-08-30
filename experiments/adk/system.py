@@ -42,7 +42,13 @@ def make_system(_topology_source, temp: float = 300.0, dt: float = 0.004):
         )
     system = XmlSerializer.deserialize(SYSTEM_XML.read_text())
 
-    built_dt = json.loads(BUILD_JSON.read_text())["dt_ps"] if BUILD_JSON.exists() else dt
+    if not BUILD_JSON.exists():
+        raise FileNotFoundError(
+            f"{BUILD_JSON} not found; it records the step size the system's "
+            f"hydrogen masses were repartitioned for, and without it the guard "
+            f"below cannot run. Rebuild with build_system.py."
+        )
+    built_dt = json.loads(BUILD_JSON.read_text())["dt_ps"]
     if dt > built_dt + 1e-12:
         raise ValueError(
             f"dt={dt} ps exceeds the {built_dt} ps this system was built for "

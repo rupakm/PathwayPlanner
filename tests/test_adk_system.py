@@ -36,12 +36,18 @@ N_STEPS = 400
 STRIDE = 100
 N_REPLICAS = 2
 
-# CV values of the two crystal endpoints, from domains.py. Their midpoint is a
-# burst-length-specific guard, not a basin boundary: the LID breathes by about
-# +/- 2 A over 500 ps (see README.md), which 1.6 ps cannot reach, but a longer
-# smoke test would need the RMSD comparison below rather than this threshold.
+# CV values of the two crystal endpoints, from domains.py.
 OPEN_LID_CORE_A = 30.8
 CLOSED_LID_CORE_A = 21.0
+
+# Floor for LID-CORE in the open state, chosen so the assertion holds at any
+# burst length. The endpoint midpoint (25.9 A) does not: unbiased 500 ps
+# replicas reach 24.34 A (README.md), below that midpoint, so raising N_STEPS
+# would make the test fail on ordinary breathing. This floor sits under the
+# measured minimum with margin while staying clear of the closed state, so it
+# still catches a genuine collapse. The RMSD comparison in the same test is
+# the primary discriminator and is length-independent by construction.
+OPEN_LID_CORE_FLOOR_A = 23.0
 
 
 def _fastest_platform() -> str:
@@ -126,9 +132,8 @@ def test_short_unbiased_bursts_stay_in_the_open_state(trajectories):
     lid_core = domains.lid_core_distance(TOPOLOGY_PDB)
     to_open = domains.rmsd_to_reference(TOPOLOGY_PDB, domains.OPEN_PDB)
     to_closed = domains.rmsd_to_reference(TOPOLOGY_PDB, domains.CLOSED_PDB)
-    midpoint = 0.5 * (OPEN_LID_CORE_A + CLOSED_LID_CORE_A)
 
     for trajectory in trajectories:
         for frame in trajectory.frames:
-            assert float(lid_core.project(frame)[0]) > midpoint
             assert float(to_open.project(frame)[0]) < float(to_closed.project(frame)[0])
+            assert float(lid_core.project(frame)[0]) > OPEN_LID_CORE_FLOOR_A
