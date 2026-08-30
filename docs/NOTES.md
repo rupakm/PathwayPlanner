@@ -190,3 +190,26 @@ Include only if it works cleanly.
   external ground truth, including whether the side door is discovered as an
   `Alternative` outcome rather than scripted. Placed at Stage 3-4 on cost
   grounds (~530 residues, ~100k atoms solvated). Details in PLAN.md.
+- **2026-08-30 — Trails-MD `burst-api` is a long-lived branch, not a merge
+  candidate (user decision).** PathwayPlanner's Trails-MD backend depends on
+  `trails_md.bursts` (the programmatic burst API plus the OpenMM declarative
+  bias), which lives on that branch and is not being merged into Trails-MD's
+  own line for now. Consequences to respect: every PathwayPlanner run and test
+  that touches real MD must put the branch worktree first on `PYTHONPATH`
+  (`/Users/rupak/Code/Trails-MD/.claude/worktrees/agent-a7e63d067fb172146`),
+  and an editable-install path shadow means such commands must not run with
+  `/Users/rupak/Code/Trails-MD` as the working directory, or the main
+  checkout's `trails_md` (which has no `bursts.py`) wins. The adapter's lazy
+  resolution of `run_bursts` keeps the unit tests independent of all this.
+- **2026-08-30 — Stage 3 groundwork merged.** AdK system, Beckstein domain
+  partition, hinges and all five CV spaces are on `main` (`361260f`),
+  verified against published values (theta_LID 106->147 deg, theta_NMP
+  44->73 deg, 7.13 A endpoint RMSD) with no PDB-to-literature numbering
+  offset. Cost characterised at ~1.5-2 device-days for the six-action
+  vocabulary, which closes the Paper 1 budget question. Two findings that
+  constrain the action definitions: the open state breathes (LID-CORE spans
+  24.3-32.5 A unbiased, a fifth of the endpoint range), so LID event specs
+  should use theta_LID or RMSD rather than the centroid distance and no
+  distance-based basin radius below ~4 A is safe; and committor validation
+  must draw configurations from decorrelated sampling, not from biased
+  trajectories alone, per the alanine dipeptide collinearity result.
