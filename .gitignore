@@ -219,3 +219,7 @@ __marimo__/
 experiments/stage2/runs/
 
 experiments/stage2/runs_profile/
+
+# AdK Stage 3 build products (regenerate with experiments/adk/{fetch,build}_system.py)
+experiments/adk/structures/
+experiments/adk/runs/
