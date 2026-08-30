@@ -65,11 +65,32 @@ from openmm.app import HBonds, Modeller, NoCutoff, PDBFile, Simulation
 HERE = Path(__file__).resolve().parent
 STRUCTURES = HERE / "structures"
 OPEN_PDB = STRUCTURES / "4ake_chainA.pdb"
+CLOSED_PDB = STRUCTURES / "1ake_chainA.pdb"
 
-SYSTEM_XML = STRUCTURES / "adk_open_system.xml"
-TOPOLOGY_PDB = STRUCTURES / "adk_open_topology.pdb"
-EQUILIBRATED_PDB = STRUCTURES / "adk_open_equilibrated.pdb"
-BUILD_JSON = STRUCTURES / "adk_open_build.json"
+# Both conformational endpoints get a system: `open_hinge` has to start from a
+# closed-like structure, and `close_hinge` from an open one, so Stage 3 needs
+# both. The apo closed state is not an equilibrium state -- without substrate
+# the LID is expected to open on its own -- so its equilibration is kept short
+# and the resulting theta_LID is reported, to confirm the starting structure
+# is still closed before any action runs from it.
+SOURCE_PDB = {"open": OPEN_PDB, "closed": CLOSED_PDB}
+
+
+def artifacts(state: str) -> dict[str, Path]:
+    """Output paths for a built state ("open" or "closed")."""
+    return {
+        "system_xml": STRUCTURES / f"adk_{state}_system.xml",
+        "topology_pdb": STRUCTURES / f"adk_{state}_topology.pdb",
+        "equilibrated_pdb": STRUCTURES / f"adk_{state}_equilibrated.pdb",
+        "build_json": STRUCTURES / f"adk_{state}_build.json",
+    }
+
+
+_OPEN = artifacts("open")
+SYSTEM_XML = _OPEN["system_xml"]
+TOPOLOGY_PDB = _OPEN["topology_pdb"]
+EQUILIBRATED_PDB = _OPEN["equilibrated_pdb"]
+BUILD_JSON = _OPEN["build_json"]
 
 FORCE_FIELD = ("amber14-all.xml", "implicit/gbn2.xml")
 TEMPERATURE_K = 300.0
@@ -138,25 +159,33 @@ def main() -> int:
     parser.add_argument("--no-hmr", dest="hmr", action="store_false")
     parser.add_argument("--equilibrate-ps", type=float, default=200.0)
     parser.add_argument("--platform", default="OpenCL")
+    parser.add_argument(
+        "--state",
+        choices=sorted(SOURCE_PDB),
+        default="open",
+        help="which conformational endpoint to build",
+    )
     args = parser.parse_args()
 
-    if not OPEN_PDB.exists():
-        print(f"Missing {OPEN_PDB}; run fetch_structures.py first.", file=sys.stderr)
+    source = SOURCE_PDB[args.state]
+    out = artifacts(args.state)
+    if not source.exists():
+        print(f"Missing {source}; run fetch_structures.py first.", file=sys.stderr)
         return 1
 
-    topology, positions, system, dt_ps = build_system(OPEN_PDB, hmr=args.hmr)
+    topology, positions, system, dt_ps = build_system(source, hmr=args.hmr)
     STRUCTURES.mkdir(parents=True, exist_ok=True)
-    SYSTEM_XML.write_text(XmlSerializer.serialize(system))
-    with TOPOLOGY_PDB.open("w") as handle:
+    out["system_xml"].write_text(XmlSerializer.serialize(system))
+    with out["topology_pdb"].open("w") as handle:
         PDBFile.writeFile(topology, positions, handle)
 
     final, ns_per_day, n_steps, elapsed = equilibrate(
         topology, positions, system, dt_ps, args.equilibrate_ps, args.platform
     )
-    with EQUILIBRATED_PDB.open("w") as handle:
+    with out["equilibrated_pdb"].open("w") as handle:
         PDBFile.writeFile(topology, final, handle)
 
-    BUILD_JSON.write_text(
+    out["build_json"].write_text(
         json.dumps(
             {
                 "force_field": list(FORCE_FIELD),
@@ -170,21 +199,61 @@ def main() -> int:
                 "equilibration_ps": args.equilibrate_ps,
                 "equilibration_platform": args.platform,
                 "equilibration_ns_per_day": round(ns_per_day, 1),
+                "state": args.state,
+                "source_pdb": source.name,
             },
             indent=2,
         )
         + "\n"
     )
 
-    print(f"WROTE {SYSTEM_XML} ({system.getNumParticles()} particles)")
-    print(f"WROTE {TOPOLOGY_PDB}")
-    print(f"WROTE {EQUILIBRATED_PDB}")
+    print(f"WROTE {out['system_xml']} ({system.getNumParticles()} particles)")
+    print(f"WROTE {out['topology_pdb']}")
+    print(f"WROTE {out['equilibrated_pdb']}")
     print(
         f"Equilibrated {n_steps} steps x {dt_ps * 1000:.0f} fs = "
         f"{args.equilibrate_ps:.0f} ps on {args.platform} in {elapsed:.0f} s "
         f"({ns_per_day:.0f} ns/day)"
     )
+    _report_state(out["topology_pdb"], out["equilibrated_pdb"], source)
     return 0
+
+
+def _report_state(topology_pdb: Path, equilibrated_pdb: Path, source: Path) -> None:
+    """Print the hinge CVs of the crystal and equilibrated structures.
+
+    The apo closed state is not an equilibrium state, so equilibration can
+    itself start opening the LID. Printing theta_LID before and after is how a
+    starting structure is confirmed to still represent the state it is meant
+    to, rather than assumed to.
+    """
+    import MDAnalysis as mda
+
+    import domains
+
+    theta_lid = domains.lid_core_angle(topology_pdb)
+    theta_nmp = domains.nmp_core_angle(topology_pdb)
+    lid_core = domains.lid_core_distance(topology_pdb)
+    frames = {
+        "crystal": mda.Universe(str(source)).atoms.positions.astype(float),
+        "equilibrated": mda.Universe(str(equilibrated_pdb)).atoms.positions.astype(float),
+    }
+    print(f"{'':<14}{'theta_LID':>10}{'theta_NMP':>11}{'LID-CORE':>10}")
+    for label, frame in frames.items():
+        if len(frame) != len(mda.Universe(str(topology_pdb)).atoms):
+            # The crystal frame has no hydrogens, so CV spaces bound to the
+            # hydrogenated topology cannot index it; report only what applies.
+            crystal_spaces = (
+                domains.lid_core_angle(source),
+                domains.nmp_core_angle(source),
+                domains.lid_core_distance(source),
+            )
+            values = [float(s.project(frame)[0]) for s in crystal_spaces]
+        else:
+            values = [
+                float(s.project(frame)[0]) for s in (theta_lid, theta_nmp, lid_core)
+            ]
+        print(f"{label:<14}{values[0]:10.2f}{values[1]:11.2f}{values[2]:10.2f}")
 
 
 if __name__ == "__main__":
