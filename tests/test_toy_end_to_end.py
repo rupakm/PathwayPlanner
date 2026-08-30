@@ -109,12 +109,19 @@ def test_backend_reproducible_with_seed():
         np.testing.assert_array_equal(ta.frames, tb.frames)
 
 
-def test_optional_backends_are_import_guarded():
-    from pathwayplanner.backends import trailsmd, pathgennie
+def test_trailsmd_backend_is_import_guarded():
+    from pathwayplanner.backends import trailsmd
 
-    if not trailsmd.HAVE_TRAILS_MD:
-        with pytest.raises(ImportError):
-            trailsmd.make_backend()
-    if not pathgennie.HAVE_PATHGENNIE:
-        with pytest.raises(ImportError):
-            pathgennie.make_backend()
+    if trailsmd.HAVE_TRAILS_MD:
+        pytest.skip("trails-md installed; the guarded path cannot be exercised")
+    with pytest.raises(ImportError):
+        trailsmd.make_backend()
+
+
+def test_pathgennie_is_not_a_burst_backend():
+    """PathGennie's driver is an action implementation, not a Backend, so
+    make_backend refuses unconditionally — whether or not it is installed."""
+    from pathwayplanner.backends import pathgennie
+
+    with pytest.raises(NotImplementedError, match="run_driver_search"):
+        pathgennie.make_backend()
