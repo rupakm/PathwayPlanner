@@ -41,6 +41,8 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
+import zlib
 import shutil
 import sys
 import time
@@ -74,6 +76,21 @@ OPEN_THETA_DEG = 146.5
 # BiasSpec distances are in nm and its force constants in kJ/mol/nm^2.
 OPEN_LID_CORE_NM = 3.08
 BIAS_K = 2000.0
+
+
+def _slug(family: str) -> str:
+    """Filesystem-safe directory name identifying one implementation family."""
+    return re.sub(r"[^a-z0-9]+", "_", family.lower()).strip("_")
+
+
+def _family_seed(family: str, index: int) -> int:
+    """Base seed for one (family, start state) cell.
+
+    Derived with crc32 rather than hash(): Python salts str hashing per
+    process, so a hash-derived seed would differ between runs of the same
+    script and silently break reproducibility.
+    """
+    return 1000 * (index + 1) + (zlib.crc32(_slug(family).encode()) % 977)
 
 
 def make_backend(system, workdir: Path, seed: int, stride: int) -> TrailsMDBackend:
@@ -200,8 +217,8 @@ def main() -> int:
         per_state = []
         for index, start in enumerate(starts):
             backend = make_backend(
-                system, runs / f"{family.split()[0]}_{index}",
-                seed=1000 * (index + 1), stride=stride,
+                system, runs / f"{_slug(family)}_{index}",
+                seed=_family_seed(family, index), stride=stride,
             )
             act = HingeOpeningAction(
                 name="open_hinge_LID",
@@ -276,7 +293,7 @@ def main() -> int:
         held = 0
         for index, successor in enumerate(successors):
             backend = make_backend(
-                system, runs / f"relax_{family.split()[0]}_{index}",
+                system, runs / f"relax_{_slug(family)}_{index}",
                 seed=7000 + index, stride=stride,
             )
             held += relax.run(successor, backend, budget).outcome is Outcome.SUCCESS
