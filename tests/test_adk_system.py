@@ -36,8 +36,10 @@ N_STEPS = 400
 STRIDE = 100
 N_REPLICAS = 2
 
-# CV values of the two crystal endpoints, from domains.py; the equilibrated
-# start frame must land near the open one and stay there over 1.6 ps.
+# CV values of the two crystal endpoints, from domains.py. Their midpoint is a
+# burst-length-specific guard, not a basin boundary: the LID breathes by about
+# +/- 2 A over 500 ps (see README.md), which 1.6 ps cannot reach, but a longer
+# smoke test would need the RMSD comparison below rather than this threshold.
 OPEN_LID_CORE_A = 30.8
 CLOSED_LID_CORE_A = 21.0
 

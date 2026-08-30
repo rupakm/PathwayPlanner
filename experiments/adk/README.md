@@ -203,13 +203,33 @@ states = 60 executions is **≈4.3 h per action**, and the six-action vocabulary
 plus the three baselines lands around **1.5–2 device-days**. Affordable on one
 GPU; comfortable on a small cluster.
 
-## Known risk for Stage 3
+## Known risk for Stage 3: the open state breathes
 
-The apo open state is broad in GBn2. Over unbiased 100 ps bursts the LID–CORE
-distance already samples 26–31 Å from a 29.5 Å start, i.e. the lid breathes
-across a third of the 9.8 Å open-to-closed range on the timescale of a single
-burst. Stage 3's `Unstable` outcome classifier and its basin radii have to be
-calibrated against that spontaneous breathing, or an `open_hinge` success will
-be indistinguishable from thermal noise. The θ_LID angle, which changes by 40°
-between the endpoints, may separate the basins more sharply than the distance
-does and is the fallback event coordinate.
+Two unbiased 500 ps replicas from the equilibrated start frame, sampled every
+10 ps:
+
+| Quantity | Replica 0 | Replica 1 |
+| --- | --- | --- |
+| LID–CORE (Å) | 28.67 ± 1.76, range 24.34–32.52 | 28.74 ± 2.15, range 24.76–32.92 |
+| NMP–CORE (Å) | 22.24 ± 0.31, range 21.54–22.76 | 21.71 ± 0.53, range 20.43–22.96 |
+| θ_LID (deg) | 136.6 ± 8.5 | 137.6 ± 11.2 |
+| RMSD to 4AKE open (Å) | 2.57 ± 0.49 | 2.85 ± 0.62 |
+| RMSD to 1AKE closed (Å) | 6.37 ± 0.78 | 6.00 ± 0.82 |
+
+The state is metastable — RMSD holds at ≈2.7 Å from open and ≈6.2 Å from
+closed, so nothing closes spontaneously in half a nanosecond — but the LID
+*breathes hard*: ±2 Å with excursions to 24.3 Å, a fifth of the way across the
+9.8 Å open-to-closed range, on the timescale of a single Stage 3 burst. NMP by
+contrast is nearly rigid, ±0.3–0.5 Å against a 4.1 Å endpoint separation.
+
+Two consequences for Stage 3:
+
+1. The `Unstable` classifier and the basin radii for LID actions have to be
+   calibrated against this spontaneous breathing, or an `open_hinge(LID)`
+   success will not be distinguishable from thermal noise. A basin radius
+   below ≈4 Å in the LID–CORE distance will produce false Success labels.
+2. A LID event defined on the centroid distance alone is weak: the endpoints
+   are 9.8 Å apart against a ≈2 Å fluctuation. RMSD to the reference states
+   separates them by 3.5 Å against σ ≈ 0.6 Å, and θ_LID by 40° against 8–11°,
+   so either is the more discriminating event coordinate. This is a Stage 3
+   design input, not a defect in the system.
