@@ -217,3 +217,5 @@ __marimo__/
 # Streamlit
 .streamlit/secrets.toml
 experiments/stage2/runs/
+
+experiments/stage2/runs_profile/
