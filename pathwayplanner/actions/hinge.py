@@ -30,7 +30,11 @@ from pathwayplanner.actions.base import Action, ActionResult
 from pathwayplanner.backends.base import Trajectory
 from pathwayplanner.compiler.base import Implementation
 from pathwayplanner.cv import CVSpace
-from pathwayplanner.outcomes import ThresholdClassifier
+from pathwayplanner.outcomes import (
+    ConjunctiveClassifier,
+    Criterion,
+    ThresholdClassifier,
+)
 from pathwayplanner.states import State
 
 ANGULAR_CEILING_DEG = 180.0
@@ -53,6 +57,14 @@ class _HingeAction(Action):
             unbiased implementation family.
         stop_at: Optional angle beyond which the motion is already
             complete, making the action inapplicable.
+        also: Further coordinates the event requires progress in. An angle
+            alone can be satisfied by a configuration that is not the
+            intended state -- pulling adenylate kinase's LID-CORE distance
+            drove theta_LID past the closed crystal value while the
+            structure stayed about 5 A from the closed conformation -- so a
+            structural criterion such as RMSD to the target endpoint can be
+            conjoined here. With none given the action behaves exactly as
+            the single-coordinate version.
     """
 
     limit: float = ANGULAR_CEILING_DEG
@@ -68,6 +80,7 @@ class _HingeAction(Action):
         n_replicas: int = 4,
         stop_at: float | None = None,
         partial_fraction: float = 0.5,
+        also: list[Criterion] | None = None,
     ):
         self.name = name
         self.space = space
@@ -76,11 +89,22 @@ class _HingeAction(Action):
         self.n_steps = n_steps
         self.n_replicas = n_replicas
         self.stop_at = stop_at
-        self.classifier = ThresholdClassifier(
-            space=space,
-            target_point=np.array([self.limit]),
-            delta=delta,
-            partial_fraction=partial_fraction,
+        self.also = list(also or [])
+        angle_criterion = Criterion(
+            space=space, target_point=np.array([self.limit]), delta=delta
+        )
+        self.classifier = (
+            ConjunctiveClassifier(
+                criteria=[angle_criterion, *self.also],
+                partial_fraction=partial_fraction,
+            )
+            if self.also
+            else ThresholdClassifier(
+                space=space,
+                target_point=np.array([self.limit]),
+                delta=delta,
+                partial_fraction=partial_fraction,
+            )
         )
 
     def precondition(self, state: State) -> bool:

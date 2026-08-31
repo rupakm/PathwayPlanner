@@ -180,3 +180,103 @@ class ChannelClassifier(OutcomeClassifier):
                 if predicate(cv):
                     return (name, index)
         return None
+
+
+@dataclass
+class Criterion:
+    """One coordinate an event requires progress in.
+
+    Progress is signed movement of `space` toward `target_point`, the same
+    construction ThresholdClassifier uses: with target L, progress is
+    d(start, L) - d(x, L), so it is positive only for motion in the
+    intended direction.
+    """
+
+    space: CVSpace
+    target_point: np.ndarray
+    delta: float
+
+
+@dataclass
+class ConjunctiveClassifier(OutcomeClassifier):
+    """An event that several coordinates must satisfy at once.
+
+    A single-coordinate event can be met by configurations that are not the
+    intended state: pulling adenylate kinase's LID-CORE distance drove
+    theta_LID past the closed crystal value while the structure remained
+    about 5 A from the closed conformation, so the angle reported an event
+    the structure had not reached.
+
+    The score of a frame is the *worst* component's relative progress,
+    min_i(progress_i / delta_i), so one lagging coordinate governs the
+    verdict and no amount of overshoot elsewhere compensates. The event is
+    met when a single frame scores 1.0 or more -- criteria must be
+    satisfied together, not accumulated across different frames, which is
+    what makes this a conjunction rather than a checklist.
+
+    With one criterion it reduces exactly to ThresholdClassifier.
+    """
+
+    criteria: list[Criterion]
+    partial_fraction: float = 0.5
+
+    def _frame_score(self, starts: list[np.ndarray], frame: np.ndarray) -> float:
+        scores = []
+        for criterion, start_cv in zip(self.criteria, starts):
+            target = np.asarray(criterion.target_point, dtype=float)
+            cv = criterion.space.project(frame)
+            progress = criterion.space.distance(
+                start_cv, target
+            ) - criterion.space.distance(cv, target)
+            scores.append(progress / criterion.delta)
+        return min(scores)
+
+    def classify(
+        self, initial_state: State, trajectories: list[Trajectory]
+    ) -> ActionResult:
+        features = np.asarray(initial_state.features, dtype=float)
+        starts = [c.space.project(features) for c in self.criteria]
+
+        candidates: list[tuple[float, State]] = []
+        total_cost = 0.0
+        for trajectory in trajectories:
+            total_cost += trajectory.cost
+            scores = np.array(
+                [self._frame_score(starts, frame) for frame in trajectory.frames]
+            )
+            best_idx = int(np.argmax(scores))
+            frame = trajectory.frames[best_idx]
+            configuration = (
+                trajectory.configurations[best_idx]
+                if trajectory.configurations is not None
+                else frame
+            )
+            candidates.append(
+                (
+                    float(scores[best_idx]),
+                    State(configuration=configuration, features=np.asarray(frame)),
+                )
+            )
+        candidates.sort(key=lambda pair: pair[0], reverse=True)
+        best = candidates[0][0] if candidates else 0.0
+
+        if best >= 1.0:
+            outcome = Outcome.SUCCESS
+            keep = [s for score, s in candidates if score >= 1.0]
+        elif best >= self.partial_fraction:
+            outcome = Outcome.PARTIAL
+            keep = [candidates[0][1]]
+        else:
+            outcome = Outcome.FAILURE
+            keep = []
+
+        return ActionResult(
+            outcome=outcome,
+            successor_states=keep,
+            trajectories=trajectories,
+            event_scores={
+                "worst_component": best,
+                "n_criteria": float(len(self.criteria)),
+            },
+            cost=total_cost,
+        )

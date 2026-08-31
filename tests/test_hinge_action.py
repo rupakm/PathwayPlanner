@@ -162,3 +162,53 @@ def test_opening_and_closing_disagree_on_the_same_trajectory():
     traj = [trajectory_through(140.0, 118.0)]
     assert closing().evaluate(state_at(146.0), traj).outcome is Outcome.SUCCESS
     assert action().evaluate(state_at(146.0), traj).outcome is Outcome.FAILURE
+
+
+# --- conjunctive events: the angle alone is not the state --------------------
+
+RMSD = __import__("pathwayplanner.cv", fromlist=["EuclideanCV"]).EuclideanCV(
+    lambda f: np.asarray(f, dtype=float)[1:2], dim=1
+)
+
+
+def state_2d(angle, rmsd):
+    frame = np.array([angle, rmsd])
+    return State(configuration=frame, features=frame)
+
+
+def traj_2d(*frames):
+    return Trajectory(frames=np.array(frames, dtype=float), cost=1.0)
+
+
+def closing_with_rmsd():
+    from pathwayplanner.outcomes import Criterion
+
+    return HingeClosingAction(
+        name="close_hinge_LID", space=ANGLE, delta=25.0, bias=None,
+        also=[Criterion(space=RMSD, target_point=np.array([0.0]), delta=2.0)],
+    )
+
+
+def test_conjunctive_close_rejects_an_angle_only_closure():
+    """The probe's failure mode: theta_LID drives past the closed crystal
+    value while the structure stays far from the closed conformation."""
+    result = closing_with_rmsd().evaluate(
+        state_2d(146.0, 6.2), [traj_2d([99.0, 5.9])]
+    )
+    assert result.outcome is not Outcome.SUCCESS
+
+
+def test_conjunctive_close_accepts_a_real_closure():
+    result = closing_with_rmsd().evaluate(
+        state_2d(146.0, 6.2), [traj_2d([118.0, 4.0])]
+    )
+    assert result.outcome is Outcome.SUCCESS
+
+
+def test_hinge_action_without_extra_criteria_is_unchanged():
+    """Adding the mechanism must not alter the single-coordinate behaviour
+    the open_hinge results were produced with."""
+    plain = closing()
+    result = plain.evaluate(state_at(146.0), [trajectory_through(140.0, 118.0)])
+    assert result.outcome is Outcome.SUCCESS
+    assert result.event_scores["best_progress"] == pytest.approx(28.0)
