@@ -240,16 +240,20 @@ def main() -> int:
                  f"{success_rate:.2f} |")
     lines.append("| unbiased null | none | 0.00 |")
     lines.append("")
+    all_advances = [a for d in summary.values() for a in d["advances"]]
     lines.append(
-        f"Final theta_LID advance: median {np.median(advances):.1f} deg, "
-        f"range {min(advances):.1f} to {max(advances):.1f} deg "
-        f"(the event needs {DELTA_DEG})."
+        f"Final theta_LID advance over all {len(all_advances)} executions: "
+        f"median {np.median(all_advances):.1f} deg, best "
+        f"{max(all_advances):.1f} deg, against the {DELTA_DEG} deg the event "
+        f"requires. No execution of any allocation came within "
+        f"{DELTA_DEG - max(all_advances):.1f} deg of the threshold."
     )
     lines.append("")
+    executions = total * len(summary)
     lines.append(
-        f"Cost: {total * STEPS_PER_EXECUTION:,} steps "
-        f"({total * STEPS_PER_EXECUTION * dt_ps / 1000:.1f} ns) in "
-        f"{wall / 60:.0f} min."
+        f"Cost: {executions * STEPS_PER_EXECUTION:,} steps "
+        f"({executions * STEPS_PER_EXECUTION * dt_ps / 1000:.1f} ns) across "
+        f"{executions} executions in {wall / 60:.0f} min."
     )
     lines.append("")
     lines.append(

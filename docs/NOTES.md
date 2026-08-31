@@ -240,3 +240,29 @@ Include only if it works cleanly.
   persistence does not demonstrate the open basin. Method note carried forward: the next sweep
   should extend downward in k, and repeats should return to the protocol's
   20 once the working range is known.
+- **2026-08-31 — Implementation families are not interchangeable at a fixed
+  budget (first WP2 datum on a protein).** `open_hinge(LID)` run by
+  PathGennie's selection-driven driver, same event specification and same
+  50,000 steps per execution as the biased family:
+  **0 successes in 90 executions**, 95% CI [0.000, 0.040], against 1.00 for
+  a restraint at k >= 1000 and 0.87 at k = 250. Cost was split three ways
+  between swarm breadth and segment length and all three allocations
+  returned zero, so this is a property of the method at this budget rather
+  than of one configuration; nor is it a near miss (best advance 18.0 deg of
+  the 25 required, median 5.7). Mechanism: selection can only amplify
+  fluctuations that occur, so it needs the hinge to open by chance within a
+  segment before it has anything to select, while a restraint supplies the
+  free energy directly. On 50 ps the LID does not spontaneously sample a
+  25 deg opening (the unbiased null agrees, 0/30), so selection inherits the
+  null's failure at the same cost. This does *not* show selection cannot
+  open the hinge; the open question is the budget at which the preference
+  reverses, which is the natural follow-up experiment.
+  Caveat of record: only integrator steps were matched, not wall clock --
+  this family runs in-process on one OpenMM context while the biased family
+  spawned a subprocess per replica.
+  Adapter bug found while wiring the OpenMM engine and fixed before it could
+  produce a wrong number: `run_driver_search` preferred `create_state`,
+  which is unitless in PathGennie's toy engine but which the OpenMM engine
+  forwards to `Context.setPositions`, where a bare array means nanometres --
+  Angstrom coordinates would have been read as a tenfold expanded structure.
+  It now uses `create_handle` throughout, with a test pinning the contract.
