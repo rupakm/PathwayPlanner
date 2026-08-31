@@ -1,13 +1,15 @@
-"""Stage 3, first action: open_hinge(LID) on adenylate kinase, end to end.
+"""Stage 3, second action: close_hinge(LID) on adenylate kinase.
 
-Runs the WP1 protocol for a single action so the design is tested before
-the other five are written: repeated execution from several start
-states, an outcome distribution, relaxation persistence, and the two
-baselines that decide whether the action is doing any work.
+The mirror of run_open_hinge.py, and the sharper test. Apo adenylate
+kinase's equilibrium is the *open* state, so closing the LID is uphill:
+a success cannot be spontaneous relaxation dressed up as an action, which
+is a weakness of the opening direction that no null model can fully
+remove. Design, budget and event size are held identical to the opening
+run so the two directions are directly comparable.
 
 Event specification
 -------------------
-theta_LID advances by at least DELTA_DEG from the state the action was
+theta_LID *decreases* by at least DELTA_DEG from the state the action was
 invoked on. theta_LID is used rather than the LID-CORE centroid distance
 because the open state breathes by +/- 2 A in that distance -- a fifth of
 the endpoint range (README.md) -- while the angle separates the endpoints
@@ -16,16 +18,14 @@ by 40 degrees against an 8-11 degree fluctuation.
 Implementations compared, at equal cost
 ---------------------------------------
 * biased: Trails-MD bursts under a harmonic LID-CORE centroid-distance
-  restraint pulling toward the open endpoint. A distance bias is used
+  restraint pulling toward the *closed* endpoint. A distance bias is used
   because trails_md.bursts.BiasSpec supports exactly distance and torsion
   CVs; biasing the angle itself, or an interface contact count, would
   require extending BiasSpec, which is deliberately deferred.
-* unbiased: identical bursts with no intervention. This is the null
-  model, and it is the measurement that matters: apo AdK's closed state
-  is not an equilibrium state, so the LID may open on its own. If the
-  unbiased family succeeds as often as the biased one, the intervention
-  is adding nothing and the action's implementation, not the language, is
-  what needs rethinking.
+* unbiased: identical bursts with no intervention. Here the null is
+  expected to fail outright rather than merely to lag, because closing
+  runs against the free-energy gradient. A null that nonetheless
+  succeeds would mean the open start state was not equilibrated.
 
 Both are the same Action object with a different `bias`, so the event
 specification, the classifier and the outcome semantics are held fixed
@@ -51,7 +51,7 @@ from pathlib import Path
 import numpy as np
 
 from pathwayplanner import Budget, Implementation, Outcome, State
-from pathwayplanner.actions.hinge import HingeOpeningAction
+from pathwayplanner.actions.hinge import HingeClosingAction
 from pathwayplanner.actions.relax import RelaxAction
 from pathwayplanner.backends.trailsmd import TrailsMDBackend
 from pathwayplanner.evaluation import OutcomeModel, estimate_outcomes
@@ -62,19 +62,20 @@ from trails_md.bursts import BiasSpec, BurstSystem
 
 HERE = Path(__file__).resolve().parent
 STRUCTURES = HERE / "structures"
-CLOSED_TOPOLOGY = STRUCTURES / "adk_closed_topology.pdb"
-CLOSED_EQUILIBRATED = STRUCTURES / "adk_closed_equilibrated.pdb"
-CLOSED_SYSTEM_XML = STRUCTURES / "adk_closed_system.xml"
+OPEN_TOPOLOGY = STRUCTURES / "adk_open_topology.pdb"
+OPEN_EQUILIBRATED = STRUCTURES / "adk_open_equilibrated.pdb"
+OPEN_SYSTEM_XML = STRUCTURES / "adk_open_system.xml"
 
 # theta_LID at the crystal endpoints (domains.py): closed 106, open 147.
 # DELTA_DEG must clear the angle's thermal fluctuation (8-11 deg in the open
 # state) to avoid scoring breathing as an opening; 25 deg is above 2 sigma and
 # is roughly two thirds of the way to the open endpoint.
 DELTA_DEG = 25.0
-OPEN_THETA_DEG = 146.5
+# Closed endpoint; the precondition retires the action once reached.
+CLOSED_THETA_DEG = 106.1
 
 # BiasSpec distances are in nm and its force constants in kJ/mol/nm^2.
-OPEN_LID_CORE_NM = 3.08
+CLOSED_LID_CORE_NM = 2.10
 BIAS_K = 2000.0
 
 
@@ -96,7 +97,7 @@ def _family_seed(family: str, index: int) -> int:
 def make_backend(system, workdir: Path, seed: int, stride: int) -> TrailsMDBackend:
     return TrailsMDBackend(
         system=system,
-        space=domains.lid_core_angle(CLOSED_TOPOLOGY),
+        space=domains.lid_core_angle(OPEN_TOPOLOGY),
         workdir=workdir,
         stride=stride,
         base_seed=seed,
@@ -104,14 +105,14 @@ def make_backend(system, workdir: Path, seed: int, stride: int) -> TrailsMDBacke
 
 
 def distance_bias(k: float = BIAS_K) -> BiasSpec:
-    """Harmonic LID-CORE centroid restraint pulling toward the open endpoint."""
-    lid = domains.atom_indices(CLOSED_TOPOLOGY, domains.LID_RANGES)
-    core = domains.atom_indices(CLOSED_TOPOLOGY, domains.CORE_RANGES)
+    """Harmonic LID-CORE centroid restraint pulling toward the closed endpoint."""
+    lid = domains.atom_indices(OPEN_TOPOLOGY, domains.LID_RANGES)
+    core = domains.atom_indices(OPEN_TOPOLOGY, domains.CORE_RANGES)
     return BiasSpec(
         cv="distance",
         form="harmonic",
         k=k,
-        target=OPEN_LID_CORE_NM,
+        target=CLOSED_LID_CORE_NM,
         groups=(tuple(int(i) for i in lid), tuple(int(i) for i in core)),
     )
 
@@ -126,8 +127,8 @@ def start_states(system, n_states: int, n_steps: int, seed: int, workdir: Path):
     """
     backend = make_backend(system, workdir, seed=seed, stride=n_steps)
     seed_state = State(
-        configuration=CLOSED_EQUILIBRATED,
-        features=_positions(CLOSED_EQUILIBRATED),
+        configuration=OPEN_EQUILIBRATED,
+        features=_positions(OPEN_EQUILIBRATED),
     )
     trajectories = backend.run_bursts(
         [seed_state],
@@ -151,9 +152,9 @@ def main() -> int:
     parser.add_argument("--fast", action="store_true")
     args = parser.parse_args()
 
-    for path in (CLOSED_SYSTEM_XML, CLOSED_TOPOLOGY, CLOSED_EQUILIBRATED):
+    for path in (OPEN_SYSTEM_XML, OPEN_TOPOLOGY, OPEN_EQUILIBRATED):
         if not path.exists():
-            print(f"Missing {path}; run build_system.py --state closed first.",
+            print(f"Missing {path}; run build_system.py first.",
                   file=sys.stderr)
             return 1
 
@@ -161,10 +162,14 @@ def main() -> int:
     n_repeats = 3 if args.fast else 10
     n_steps = 5000 if args.fast else 12500       # 20 ps / 50 ps at 4 fs
     n_replicas = 2 if args.fast else 4
-    relax_steps = 5000 if args.fast else 12500
+    # 250 ps, five times the opening run's relaxation: closing is uphill,
+    # so the question is not whether the event happened but whether it
+    # survives, and a reopening needs time to show itself.
+    relax_steps = 5000 if args.fast else 62500
+    relax_replicas = 2
     stride = 500
 
-    runs = HERE / "runs" / "open_hinge"
+    runs = HERE / "runs" / "close_hinge"
     if runs.exists():
         shutil.rmtree(runs)
     runs.mkdir(parents=True)
@@ -172,25 +177,25 @@ def main() -> int:
     system = BurstSystem(
         engine_name="openmm",
         engine_kwargs={"platform_name": "OpenCL", "temperature": 300.0, "dt": 0.004},
-        conf=CLOSED_TOPOLOGY,
-        top=CLOSED_TOPOLOGY,
-        system_file=HERE / "system_closed.py",
+        conf=OPEN_TOPOLOGY,
+        top=OPEN_TOPOLOGY,
+        system_file=HERE / "system.py",
     )
     budget = Budget(max_steps=10**9)
-    theta = domains.lid_core_angle(CLOSED_TOPOLOGY)
-    lid_core = domains.lid_core_distance(CLOSED_TOPOLOGY)
+    theta = domains.lid_core_angle(OPEN_TOPOLOGY)
+    lid_core = domains.lid_core_distance(OPEN_TOPOLOGY)
     wall_start = time.perf_counter()
 
     starts = start_states(system, n_states, n_steps, seed=17, workdir=runs / "starts")
     start_angles = [float(theta.project(s.features)[0]) for s in starts]
 
-    lines = ["# Stage 3, action 1: open_hinge(LID) on adenylate kinase", ""]
+    lines = ["# Stage 3, action 2: close_hinge(LID) on adenylate kinase", ""]
     lines.append(
-        f"Event: theta_LID advances by >= {DELTA_DEG} deg. Bursts of "
+        f"Event: theta_LID DECREASES by >= {DELTA_DEG} deg (uphill). Bursts of "
         f"{n_steps} steps x 4 fs = {n_steps * 0.004:.0f} ps, {n_replicas} "
         f"replicas, {n_repeats} repeats from each of {n_states} decorrelated "
-        f"closed start states. Crystal endpoints: theta_LID 106 (closed) -> "
-        f"{OPEN_THETA_DEG} (open) deg."
+        f"open start states. Crystal endpoints: theta_LID 146.5 (open) -> "
+        f"{CLOSED_THETA_DEG} (closed) deg."
     )
     lines.append("")
     lines.append(f"Start states: theta_LID = "
@@ -220,14 +225,14 @@ def main() -> int:
                 system, runs / f"{_slug(family)}_{index}",
                 seed=_family_seed(family, index), stride=stride,
             )
-            act = HingeOpeningAction(
-                name="open_hinge_LID",
+            act = HingeClosingAction(
+                name="close_hinge_LID",
                 space=theta,
                 delta=DELTA_DEG,
                 bias=bias,
                 n_steps=n_steps,
                 n_replicas=n_replicas,
-                stop_at=OPEN_THETA_DEG,
+                stop_at=CLOSED_THETA_DEG,
             )
             model = estimate_outcomes(
                 Lift(lambda s, a=act, b=backend: a.run(s, b, budget)),
@@ -283,13 +288,13 @@ def main() -> int:
 
     lines.append("## Relaxation persistence")
     relax = RelaxAction(space=theta, tolerance=DELTA_DEG,
-                        n_steps=relax_steps, n_replicas=n_replicas)
+                        n_steps=relax_steps, n_replicas=relax_replicas)
     for family, data in summary.items():
         successors = [
             s for s in data["successors"]
             if float(theta.project(s.features)[0])
-            >= min(start_angles) + DELTA_DEG
-        ][: (2 if args.fast else 5)]
+            <= max(start_angles) - DELTA_DEG
+        ][: (2 if args.fast else 3)]
         held = 0
         for index, successor in enumerate(successors):
             backend = make_backend(
@@ -299,11 +304,11 @@ def main() -> int:
             held += relax.run(successor, backend, budget).outcome is Outcome.SUCCESS
         if successors:
             lines.append(
-                f"- {family}: {held}/{len(successors)} openings survived "
+                f"- {family}: {held}/{len(successors)} closings held for "
                 f"{relax_steps * 0.004:.0f} ps unbiased."
             )
         else:
-            lines.append(f"- {family}: no openings to relax.")
+            lines.append(f"- {family}: no closings to relax.")
     lines.append("")
 
     wall = time.perf_counter() - wall_start
@@ -317,8 +322,8 @@ def main() -> int:
         f"- Per execution: {total / (len(families) * n_states * n_repeats) * 4e-6:.3f} ns."
     )
 
-    (HERE / "open_hinge_results.md").write_text("\n".join(lines) + "\n")
-    (HERE / "open_hinge_results.json").write_text(
+    (HERE / "close_hinge_results.md").write_text("\n".join(lines) + "\n")
+    (HERE / "close_hinge_results.json").write_text(
         json.dumps(
             {
                 f: {k: v for k, v in d.items() if k != "successors"}

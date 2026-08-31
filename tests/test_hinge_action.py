@@ -78,12 +78,12 @@ def test_best_replica_decides_the_ensemble_outcome():
 
 
 def test_precondition_rejects_an_already_open_hinge():
-    act = action(open_above=145.0)
+    act = action(stop_at=145.0)
     assert act.precondition(state_at(110.0))
     assert not act.precondition(state_at(150.0))
 
 
-def test_precondition_admits_everything_when_no_ceiling_is_given():
+def test_precondition_admits_everything_when_no_bound_is_given():
     assert action().precondition(state_at(179.0))
 
 
@@ -105,7 +105,7 @@ def test_unbiased_variant_proposes_no_bias():
 
 
 def test_run_is_semantic_on_a_failed_precondition():
-    act = action(open_above=100.0)
+    act = action(stop_at=100.0)
     result = act.run(state_at(150.0), backend=None, budget=Budget())
     assert result.outcome is Outcome.FAILURE
     assert result.metadata["reason"] == "precondition_failed"
@@ -119,3 +119,46 @@ def test_progress_is_measured_from_the_start_state_not_the_first_frame():
         state_at(110.0), [trajectory_through(118.0, 121.0)]
     )
     assert result.event_scores["best_progress"] == pytest.approx(11.0)
+
+
+# --- closing: the same machinery run in the opposite direction ---------------
+
+from pathwayplanner.actions.hinge import HingeClosingAction  # noqa: E402
+
+
+def closing(delta: float = 25.0, **kwargs) -> HingeClosingAction:
+    return HingeClosingAction(
+        name="close_hinge_test", space=ANGLE, delta=delta, bias="BIAS", **kwargs
+    )
+
+
+def test_closing_succeeds_when_the_angle_decreases_by_delta():
+    result = closing().evaluate(state_at(146.0), [trajectory_through(140.0, 118.0)])
+    assert result.outcome is Outcome.SUCCESS
+    assert result.event_scores["best_progress"] == pytest.approx(28.0)
+    assert result.best_state.features[0] == pytest.approx(118.0)
+
+
+def test_closing_scores_opening_as_negative_progress():
+    result = closing().evaluate(state_at(146.0), [trajectory_through(150.0, 152.0)])
+    assert result.outcome is Outcome.FAILURE
+    assert result.event_scores["best_progress"] == pytest.approx(-4.0)
+
+
+def test_closing_partial():
+    result = closing().evaluate(state_at(146.0), [trajectory_through(131.0)])
+    assert result.outcome is Outcome.PARTIAL
+
+
+def test_closing_precondition_rejects_an_already_closed_hinge():
+    act = closing(stop_at=110.0)
+    assert act.precondition(state_at(146.0))
+    assert not act.precondition(state_at(105.0))
+
+
+def test_opening_and_closing_disagree_on_the_same_trajectory():
+    """The identical frames are progress for one action and regress for the
+    other; nothing in the classifier is direction-blind."""
+    traj = [trajectory_through(140.0, 118.0)]
+    assert closing().evaluate(state_at(146.0), traj).outcome is Outcome.SUCCESS
+    assert action().evaluate(state_at(146.0), traj).outcome is Outcome.FAILURE

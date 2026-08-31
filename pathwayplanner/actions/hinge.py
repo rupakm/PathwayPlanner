@@ -1,16 +1,18 @@
-"""Hinge opening as a structural action.
+"""Hinge motion as a structural action.
 
-`open_hinge(H, delta)` from the design document: the event is an advance
-of the hinge's angular coordinate by at least `delta`, and the action is
-a stochastic search for trajectories realizing it.
+`open_hinge(H, delta)` and `close_hinge(H, delta)` from the design
+document: the event is a movement of the hinge's angular coordinate by
+at least `delta` in the named direction, and the action is a stochastic
+search for trajectories realizing it.
 
-Progress is the *signed* advance of the angle from the state the action
-was invoked on. That is obtained from the existing ThresholdClassifier
-without a bespoke scoring rule, by placing its target at the angular
-ceiling (180 degrees for a bond angle): with target C, progress reduces
-to d(start, C) - d(x, C) = (C - start) - (C - x) = x - start for every
-angle at or below the ceiling. A hinge that closes therefore scores
-negative progress and can never be mistaken for a partial opening.
+Progress is the *signed* movement of the angle from the state the action
+was invoked on, in the action's own direction. That is obtained from the
+existing ThresholdClassifier without a bespoke scoring rule, by placing
+its target at the angular limit the motion heads toward: with target L,
+progress reduces to d(start, L) - d(x, L), which is x - start when
+L = 180 (opening) and start - x when L = 0 (closing). Motion the wrong
+way therefore scores negative and can never be mistaken for partial
+progress, in either direction.
 
 The action is protein-agnostic. The hinge coordinate arrives as a
 CVSpace and the intervention as an opaque `bias` object, which the
@@ -34,22 +36,27 @@ from pathwayplanner.states import State
 ANGULAR_CEILING_DEG = 180.0
 
 
-class HingeOpeningAction(Action):
-    """Search for trajectories that open a hinge by at least `delta` degrees.
+class _HingeAction(Action):
+    """Shared machinery for hinge motion in one direction.
+
+    Subclasses fix `limit`, the angular extreme the motion heads toward,
+    and `sense`, +1 when the angle should increase and -1 when it should
+    decrease.
 
     Attributes:
         name: Action name, e.g. "open_hinge_LID".
         space: One-dimensional CVSpace giving the hinge angle in degrees.
-        delta: Required advance in degrees. It should exceed the angle's
+        delta: Required movement in degrees. It should exceed the angle's
             thermal fluctuation, or ordinary breathing will register as
-            an opening.
+            the event.
         bias: Intervention passed through to the backend; None means the
             unbiased implementation family.
-        open_above: Optional angle at or beyond which the hinge already
-            counts as open, making the action inapplicable.
-        ceiling: Angular ceiling used to turn distance-to-target into
-            signed advance; 180 degrees for a bond angle.
+        stop_at: Optional angle beyond which the motion is already
+            complete, making the action inapplicable.
     """
+
+    limit: float = ANGULAR_CEILING_DEG
+    sense: int = 1
 
     def __init__(
         self,
@@ -59,9 +66,8 @@ class HingeOpeningAction(Action):
         bias: Any = None,
         n_steps: int = 5000,
         n_replicas: int = 4,
-        open_above: float | None = None,
+        stop_at: float | None = None,
         partial_fraction: float = 0.5,
-        ceiling: float = ANGULAR_CEILING_DEG,
     ):
         self.name = name
         self.space = space
@@ -69,20 +75,20 @@ class HingeOpeningAction(Action):
         self.bias = bias
         self.n_steps = n_steps
         self.n_replicas = n_replicas
-        self.open_above = open_above
-        self.ceiling = ceiling
+        self.stop_at = stop_at
         self.classifier = ThresholdClassifier(
             space=space,
-            target_point=np.array([ceiling]),
+            target_point=np.array([self.limit]),
             delta=delta,
             partial_fraction=partial_fraction,
         )
 
     def precondition(self, state: State) -> bool:
-        """False once the hinge is already open, if a ceiling was given."""
-        if self.open_above is None:
+        """False once the hinge has already passed `stop_at`, if given."""
+        if self.stop_at is None:
             return True
-        return float(self.space.project(state.features)[0]) < self.open_above
+        angle = float(self.space.project(state.features)[0])
+        return self.sense * (angle - self.stop_at) < 0
 
     def propose(self, state: State) -> Sequence[Implementation]:
         return [
@@ -102,3 +108,22 @@ class HingeOpeningAction(Action):
         result.metadata.setdefault("action", self.name)
         result.event_scores.setdefault("delta_required", self.delta)
         return result
+
+
+class HingeOpeningAction(_HingeAction):
+    """Search for trajectories that open a hinge by at least `delta` degrees."""
+
+    limit = ANGULAR_CEILING_DEG
+    sense = 1
+
+
+class HingeClosingAction(_HingeAction):
+    """Search for trajectories that close a hinge by at least `delta` degrees.
+
+    The uphill direction for an apo enzyme whose equilibrium is open, and
+    therefore a sharper test of an implementation than opening: a closing
+    that succeeds cannot be spontaneous relaxation.
+    """
+
+    limit = 0.0
+    sense = -1
