@@ -62,9 +62,17 @@ Does not establish:
   at or under k=250 the action begins to fail. Resolving the turnover needs
   points below 250, not further points above 1000.
 * Start-state dependence. The one heterogeneous cell (k=250, start state 0
-  at 0.60) has a 95% interval of [0.26, 0.88], which overlaps the other two
-  states' outcomes. It is a hint that action feasibility varies with the
-  starting configuration -- the WP3 question -- and nothing more at n=10.
+  at 0.60) is explained by the event specification, not by the configuration
+  being intrinsically harder. The event is a *relative* advance of >= 25 deg,
+  so each start state has a different absolute goal: 142.7, 135.6 and 132.9
+  deg for start states at theta_LID = 117.7, 110.6 and 107.9 deg. The state
+  with the lowest success rate is the one already most open, whose target
+  therefore sits closest to the fully open crystal value of 146.5 deg -- the
+  hardest absolute goal of the three. Success rate tracks target difficulty
+  in exactly that order, so nothing here bears on whether action feasibility
+  varies with the starting configuration (the WP3 question). Testing that
+  needs an event specification held fixed in absolute terms across start
+  states, which a relative delta cannot provide.
 * Stability beyond 50 ps. Relaxation persistence was measured over one
   burst length; an opening that survives 50 ps is not thereby shown to sit
   in the open basin.

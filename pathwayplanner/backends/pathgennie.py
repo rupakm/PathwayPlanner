@@ -108,9 +108,12 @@ def run_driver_search(
 ) -> DriverSearchResult:
     """Execute one event search with the PathGennie driver.
 
-    `engine` is any pathgennie Engine; `start_position` is passed to the
-    engine's state constructor (`create_state` when present, otherwise
-    `create_handle`).
+    `engine` is any pathgennie Engine. `start_position` is an
+    (n_atoms, 3) array of Angstrom coordinates, handed to the engine
+    through `create_handle`: that is the entry point both PathGennie
+    engines document as taking Angstrom, whereas `create_state` is not
+    uniform -- the OpenMM engine forwards its argument to
+    Context.setPositions, where a bare array means nanometres.
     """
     if not HAVE_PATHGENNIE:
         raise ImportError(
@@ -128,10 +131,7 @@ def run_driver_search(
             periodic=periodic,
         )
     else:
-        if hasattr(engine, "create_state"):
-            probe = engine.create_state(np.asarray(start_position, dtype=float))
-        else:
-            probe = engine.create_handle(np.asarray(start_position, dtype=float))
+        probe = engine.create_handle(np.asarray(start_position, dtype=float))
         start_cv = spec.space.project(engine.get_coords(probe))
         engine.release(probe)
         progress = EscapeMetric(projection_fn, start_cv, periodic=periodic)
@@ -145,10 +145,7 @@ def run_driver_search(
         seed=seed,
         verbosity=0,
     )
-    if hasattr(engine, "create_state"):
-        initial = engine.create_state(np.asarray(start_position, dtype=float))
-    else:
-        initial = engine.create_handle(np.asarray(start_position, dtype=float))
+    initial = engine.create_handle(np.asarray(start_position, dtype=float))
 
     coords_trajectory, metrics = driver.run(
         initial,

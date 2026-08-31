@@ -232,8 +232,11 @@ Include only if it works cleanly.
   sweep does not give a dose-response curve (k=1000 and k=2000 both saturate
   at 1.00, so the working range is bounded only from below, and resolving
   the turnover needs points *under* 250); the one heterogeneous cell (k=250,
-  start state 0, 0.60) has interval [0.26, 0.88] and is a hint at the WP3
-  state-dependence question, not evidence; and 50 ps of persistence does not
-  demonstrate the open basin. Method note carried forward: the next sweep
+  start state 0, 0.60) is explained by the relative event specification
+  rather than by state dependence -- a >= 25 deg *advance* gives each start
+  state a different absolute goal (142.7 / 135.6 / 132.9 deg), and success
+  rate tracks that difficulty exactly, so the WP3 state-dependence question
+  is untouched and needs an absolute event spec to test; and 50 ps of
+  persistence does not demonstrate the open basin. Method note carried forward: the next sweep
   should extend downward in k, and repeats should return to the protocol's
   20 once the working range is known.
