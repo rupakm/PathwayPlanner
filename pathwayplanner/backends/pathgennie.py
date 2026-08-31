@@ -69,6 +69,13 @@ class DriverSearchSpec:
         max_trial: Swarm size per cycle.
         max_cycle: Cycle cap before budget reduction.
         sigma: Softmax selection temperature.
+        reject_worse_anchor: Keep the current anchor when the committed
+            candidate scores worse, turning the search into a hill-climb.
+            The driver defaults this to False, in which case the anchor
+            follows the commit even downhill and the search has no
+            ratchet -- selection gains are not retained between cycles.
+        reject_worse_tau2: Keep the selected trial when its tau2
+            continuation scores worse than the trial itself.
     """
 
     space: "CVSpace"
@@ -79,6 +86,8 @@ class DriverSearchSpec:
     max_trial: int
     max_cycle: int
     sigma: float = 0.1
+    reject_worse_anchor: bool = False
+    reject_worse_tau2: bool = False
 
 
 @dataclass
@@ -144,6 +153,8 @@ def run_driver_search(
         sigma=spec.sigma,
         seed=seed,
         verbosity=0,
+        reject_worse_anchor=spec.reject_worse_anchor,
+        reject_worse_tau2=spec.reject_worse_tau2,
     )
     initial = engine.create_handle(np.asarray(start_position, dtype=float))
 

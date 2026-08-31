@@ -135,3 +135,38 @@ def test_seeded_search_is_reproducible():
         )
     np.testing.assert_array_equal(runs[0].trajectory.frames, runs[1].trajectory.frames)
     assert runs[0].converged == runs[1].converged
+
+
+def test_rejection_flags_are_forwarded_to_the_driver():
+    """Without these the driver has no ratchet: reject_worse_anchor defaults
+    to False, so the anchor advances to the committed candidate even when it
+    is worse than the current anchor."""
+    import pathwayplanner.backends.pathgennie as adapter
+
+    captured = {}
+    original = adapter.PathGennieDriver
+
+    class RecordingDriver(original):
+        def __init__(self, *args, **kwargs):
+            captured.update(kwargs)
+            super().__init__(*args, **kwargs)
+
+    adapter.PathGennieDriver = RecordingDriver
+    try:
+        spec = make_spec(max_cycle=1)
+        spec.reject_worse_anchor = True
+        spec.reject_worse_tau2 = True
+        run_driver_search(
+            ToyLangevinEngine(dt=0.002, kT=0.8), START_A, spec,
+            seed=11, budget=Budget(max_steps=1400),
+        )
+    finally:
+        adapter.PathGennieDriver = original
+    assert captured["reject_worse_anchor"] is True
+    assert captured["reject_worse_tau2"] is True
+
+
+def test_rejection_defaults_are_off_matching_the_driver():
+    spec = make_spec()
+    assert spec.reject_worse_anchor is False
+    assert spec.reject_worse_tau2 is False
