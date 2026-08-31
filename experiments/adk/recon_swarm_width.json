@@ -1,0 +1,42 @@
+{
+  "start_angle": 110.5557650234957,
+  "threshold": 135.5557650234957,
+  "summary": {
+    "4": {
+      "cycles": 8,
+      "mean_reach": 1.4696838361880626,
+      "max_reach": 6.690938164327022,
+      "mean_peak": 10.790200815565129,
+      "max_peak": 11.383467651718036,
+      "successes": 0,
+      "n_cycles_sampled": 24
+    },
+    "8": {
+      "cycles": 4,
+      "mean_reach": 2.784157718815109,
+      "max_reach": 5.6703015974852065,
+      "mean_peak": 9.545424626803202,
+      "max_peak": 15.026920341261189,
+      "successes": 0,
+      "n_cycles_sampled": 12
+    },
+    "16": {
+      "cycles": 2,
+      "mean_reach": 3.8843933300565134,
+      "max_reach": 5.632408611672602,
+      "mean_peak": 6.046708237027715,
+      "max_peak": 9.60957989930914,
+      "successes": 0,
+      "n_cycles_sampled": 6
+    },
+    "32": {
+      "cycles": 1,
+      "mean_reach": 5.613865728685677,
+      "max_reach": 6.383976408930678,
+      "mean_peak": 5.154003417648809,
+      "max_peak": 6.383976408930678,
+      "successes": 0,
+      "n_cycles_sampled": 3
+    }
+  }
+}

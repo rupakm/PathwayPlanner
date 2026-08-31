@@ -266,3 +266,30 @@ Include only if it works cleanly.
   forwards to `Context.setPositions`, where a bare array means nanometres --
   Angstrom coordinates would have been read as a tenfold expanded structure.
   It now uses `create_handle` throughout, with a test pinning the contract.
+- **2026-08-31 — Why the selection-driven family fails, settled by two cheap
+  probes (34 min total, against a 3 h experiment I nearly ran).**
+  Probe 1 (`recon_ratchet_results.md`, `instrument_pathgennie.py`): the
+  driver's `reject_worse_anchor` defaults to False, so the earlier 0/90 run
+  had no ratchet. Enabling it did *not* rescue the search and in fact lowered
+  peak advance (+8.6 vs +14.4 deg): with the anchor ratcheted into the tail
+  of theta_LID's equilibrium distribution, 10 of 16 cycles had no trial
+  exceed the anchor at all. This also refuted my stated mechanism -- I
+  claimed excursions decay during the tau2 commit, but give-back averages
+  +0.4 deg with a free anchor and commits often *improve* on the trial they
+  extend. The mechanism is regression to the mean.
+  Probe 2 (`recon_swarm_width_results.md`): tested that account's
+  quantitative prediction, that best-of-m reach grows as sqrt(2 ln m).
+  **It failed.** Max reach is flat in m (+6.7, +5.7, +5.6, +6.4 deg for
+  m = 4..32) where 1.58x was predicted, and the pre-registered alternative
+  holds instead: the m trials share a starting anchor and 5 ps does not
+  decorrelate them, so they are not independent draws. What compounds is
+  cycles, logarithmically -- peak advance fits 4.8 + 2.03 deg per doubling
+  of cycles (R^2 0.94), extrapolating to ~10^3 cycles and ~100x budget
+  (~25 ns per execution) to reach the 25 deg event, against 0.2 ns at which
+  the restraint already succeeds every time.
+  Conclusion for WP2: for this action on this system the selection-driven
+  family is the wrong implementation by about two orders of magnitude in
+  cost, and no allocation of a fixed budget rescues it. Method note: both
+  probes were designed with a falsifiable prediction stated first; the
+  second one failing is what produced the useful answer. Visualization of
+  the per-cycle stall: https://claude.ai/code/artifact/1e7eb19b-091b-447e-866c-2ab05e5699d7
