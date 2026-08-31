@@ -213,3 +213,27 @@ Include only if it works cleanly.
   distance-based basin radius below ~4 A is safe; and committor validation
   must draw configurations from decorrelated sampling, not from biased
   trajectories alone, per the alanine dipeptide collinearity result.
+- **2026-08-31 — First Stage 3 action complete: `open_hinge(LID)` on AdK.**
+  Results in `experiments/adk/open_hinge_results.md`. Event: theta_LID
+  advances >= 25 deg (chosen to clear the 8-11 deg thermal fluctuation).
+  Four implementation conditions, 3 decorrelated closed start states, 10
+  repeats each, 50 ps bursts of 4 replicas, equal cost per condition.
+  Headline: **90/90 biased executions succeeded, 0/30 unbiased**
+  (Clopper-Pearson intervals [0.94, 1.00] and [0.00, 0.12], disjoint). The
+  null model is the load-bearing comparison, since apo AdK's closed state is
+  off-equilibrium and the LID might have opened unaided; on this timescale
+  it does not, so the intervention is doing the work rather than relabelling
+  spontaneous motion. 14/15 tested openings survived 50 ps unbiased, so they
+  are physical rather than bias artifacts. PARTIAL outcomes appear (4/30 at
+  k=250, 1/30 in the null), so the outcome vocabulary is exercised rather
+  than decorative. Cost: 6M steps = 24 ns for the matrix, 0.200 ns per
+  execution, 343 min wall on one M3 Pro via OpenCL.
+  What it does *not* establish, recorded to prevent over-claiming later: the
+  sweep does not give a dose-response curve (k=1000 and k=2000 both saturate
+  at 1.00, so the working range is bounded only from below, and resolving
+  the turnover needs points *under* 250); the one heterogeneous cell (k=250,
+  start state 0, 0.60) has interval [0.26, 0.88] and is a hint at the WP3
+  state-dependence question, not evidence; and 50 ps of persistence does not
+  demonstrate the open basin. Method note carried forward: the next sweep
+  should extend downward in k, and repeats should return to the protocol's
+  20 once the working range is known.
