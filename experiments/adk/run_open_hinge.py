@@ -74,7 +74,11 @@ from pathwayplanner import Budget, Implementation, Outcome, State
 from pathwayplanner.actions.hinge import HingeOpeningAction
 from pathwayplanner.actions.relax import RelaxAction
 from pathwayplanner.backends.trailsmd import TrailsMDBackend
-from pathwayplanner.evaluation import OutcomeModel, estimate_outcomes
+from pathwayplanner.evaluation import (
+    OutcomeModel,
+    estimate_outcomes,
+    relaxation_direction,
+)
 from pathwayplanner.outcomes import Criterion
 from pathwayplanner.recipes import Lift, RecipeContract
 
@@ -331,7 +335,17 @@ def main() -> int:
         )
     lines.append("")
 
-    lines.append("## Relaxation persistence")
+    lines.append("## Relaxation after the restraint is removed")
+    lines.append("")
+    lines.append("Signed direction, not a pass/fail verdict: the progress "
+                 "coordinate is s = RMSD(closed) - RMSD(open), so positive is "
+                 "nearer the open reference. A threshold on drift has no "
+                 "defensible setting -- the coordinate's own fluctuation is "
+                 "comparable to any drift worth detecting -- and these "
+                 "configurations lie on a gradient rather than in a basin, so "
+                 "they always relax. UNSTABLE is reserved for a "
+                 "committor-backed claim.")
+    lines.append("")
     relax = RelaxAction(space=theta, tolerance=RELAX_TOLERANCE_DEG,
                         n_steps=relax_steps, n_replicas=n_replicas)
     for family, data in summary.items():

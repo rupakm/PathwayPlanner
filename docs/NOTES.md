@@ -410,3 +410,31 @@ Include only if it works cleanly.
   requirements, not enhancements. Also missing at the intervention layer: a
   contact-count CV (blocks weaken_interface) and an orientation restraint
   (blocks rotate_domain).
+- **2026-09-01 — Corrected `open_hinge` completed; persistence redefined.**
+  The conjunctive run (`experiments/adk/open_hinge_results.md`) supersedes
+  de9b2e2. Guided vs unguided survives the stricter event intact: **90/90 vs
+  0/30** at equal cost across k = 1000/2000/4000. The conjunctive event fixed
+  the defect the audit found: structures now reach 3.78 A from the open
+  crystal from a 6.97 A start, against an open basin near 2.7 A -- about 75%
+  of the conformational change, where the superseded run's max-angle frames
+  delivered ~40%.
+  **Persistence was measured wrongly, twice, and is now not a pass/fail at
+  all.** The first version gated on 2.5 sigma of theta_LID's fluctuation and
+  passed 14/15; my audit tightened it to 1 sigma and it failed 14/15. Neither
+  is defensible: the measured mean drift over the window is 11.4 deg against a
+  fluctuation of 8-11 deg, so the threshold *is* the fluctuation. The question
+  is also ill-posed -- at 3.78 A from open with the basin at 2.7 A these
+  configurations sit on a gradient, not in a basin, and always relax.
+  Replaced by `pathwayplanner.evaluation.relaxation_direction`: a signed,
+  threshold-free measurement of s = RMSD(closed) - RMSD(open) over the
+  unbiased window, reporting start, end, change, spread and fraction
+  advancing. Recomputed from disk for this run at no compute cost.
+  Result: every condition retreats. The ensemble moves +1.27 -> -0.48 A, mean
+  change -1.75 A, with **54 of 60 trajectories moving back toward closed**
+  and 19 of 60 still on the open side at 50 ps. `UNSTABLE` is *not* claimed:
+  most trajectories reach neither basin, so commitment is unresolved, and
+  that is what the Stage 3 committor experiment is for.
+  Open physical question, not settled by these data: apo AdK's equilibrium is
+  open, so a systematic retreat is not what thermodynamics alone suggests.
+  Either the restraint over-strains the structures, or 50 ps is too short to
+  see downhill relaxation toward open after an initial elastic recoil.
