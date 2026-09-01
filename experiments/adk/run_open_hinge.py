@@ -1,17 +1,37 @@
-"""Stage 3, first action: open_hinge(LID) on adenylate kinase, end to end.
+"""Stage 3, first action: open_hinge(LID) on adenylate kinase.
+
+SUPERSEDES the first version of this experiment (results committed at
+de9b2e2). That run defined the event on theta_LID alone and reported
+90/90 successes. An audit of its saved trajectories showed the angle
+reaching 141.4 deg -- near the 146.5 deg open crystal value -- while
+C-alpha RMSD to the open structure moved only 6.66 -> 5.06 A, about a
+quarter of the way. The event was satisfied by configurations that had
+left the closed state without arriving at the open one, the same defect
+later found in close_hinge. This version requires the structure to
+follow the angle.
 
 Runs the WP1 protocol for a single action so the design is tested before
 the other five are written: repeated execution from several start
 states, an outcome distribution, relaxation persistence, and the two
 baselines that decide whether the action is doing any work.
 
-Event specification
--------------------
-theta_LID advances by at least DELTA_DEG from the state the action was
-invoked on. theta_LID is used rather than the LID-CORE centroid distance
-because the open state breathes by +/- 2 A in that distance -- a fifth of
-the endpoint range (README.md) -- while the angle separates the endpoints
-by 40 degrees against an 8-11 degree fluctuation.
+Event specification (conjunctive)
+---------------------------------
+theta_LID advances by at least DELTA_DEG *and* C-alpha RMSD to the open
+crystal structure falls by at least RMSD_DELTA_A, in the same frame.
+
+theta_LID is the better angular coordinate because the open state
+breathes +/- 2 A in the LID-CORE distance, a fifth of the endpoint range,
+while the angle separates the endpoints by 40 deg against an 8-11 deg
+fluctuation. But an angle is not a conformation: the audit above showed
+it can read "open" while the structure has barely moved. RMSD_DELTA_A is
+set to 2.0 A, more than three standard deviations of that RMSD's thermal
+fluctuation (~0.6 A) and roughly half the 4.0 A separating the
+equilibrated closed start from the open basin.
+
+Requiring both is expected to lower the reported success rate
+substantially from the superseded 1.00. That is the point: the earlier
+number measured an angle, not an opening.
 
 Implementations compared, at equal cost
 ---------------------------------------
@@ -55,6 +75,7 @@ from pathwayplanner.actions.hinge import HingeOpeningAction
 from pathwayplanner.actions.relax import RelaxAction
 from pathwayplanner.backends.trailsmd import TrailsMDBackend
 from pathwayplanner.evaluation import OutcomeModel, estimate_outcomes
+from pathwayplanner.outcomes import Criterion
 from pathwayplanner.recipes import Lift, RecipeContract
 
 import domains
@@ -71,6 +92,10 @@ CLOSED_SYSTEM_XML = STRUCTURES / "adk_closed_system.xml"
 # state) to avoid scoring breathing as an opening; 25 deg is above 2 sigma and
 # is roughly two thirds of the way to the open endpoint.
 DELTA_DEG = 25.0
+RMSD_DELTA_A = 2.0
+# One sigma of theta_LID's thermal fluctuation (8-11 deg), not the 2.5 sigma
+# the superseded run used, under which a 24 deg drift counted as stable.
+RELAX_TOLERANCE_DEG = 10.0
 OPEN_THETA_DEG = 146.5
 
 # BiasSpec distances are in nm and its force constants in kJ/mol/nm^2.
@@ -179,6 +204,10 @@ def main() -> int:
     budget = Budget(max_steps=10**9)
     theta = domains.lid_core_angle(CLOSED_TOPOLOGY)
     lid_core = domains.lid_core_distance(CLOSED_TOPOLOGY)
+    to_open = domains.rmsd_to_reference(CLOSED_TOPOLOGY, domains.OPEN_PDB)
+    rmsd_criterion = Criterion(
+        space=to_open, target_point=np.array([0.0]), delta=RMSD_DELTA_A
+    )
     wall_start = time.perf_counter()
 
     starts = start_states(system, n_states, n_steps, seed=17, workdir=runs / "starts")
@@ -206,7 +235,10 @@ def main() -> int:
     # null turns one point into a dose-response curve, which is the evidence
     # the WP2 compiler needs to choose an implementation rather than be told
     # one.
-    sweep = [250.0, 1000.0, BIAS_K] if not args.fast else [BIAS_K]
+    # Extended upward: the structural criterion asks more of the restraint
+    # than the angular one did, so the working range may lie above the
+    # strengths that sufficed before.
+    sweep = [1000.0, 2000.0, 4000.0] if not args.fast else [BIAS_K]
     families = {f"biased k={k:.0f} kJ/mol/nm^2": distance_bias(k) for k in sweep}
     families["unbiased (null model)"] = None
     summary: dict[str, dict] = {}
@@ -228,6 +260,7 @@ def main() -> int:
                 n_steps=n_steps,
                 n_replicas=n_replicas,
                 stop_at=OPEN_THETA_DEG,
+                also=[rmsd_criterion],
             )
             model = estimate_outcomes(
                 Lift(lambda s, a=act, b=backend: a.run(s, b, budget)),
@@ -239,7 +272,11 @@ def main() -> int:
             pooled.counts.update(model.counts)
             pooled.successors.extend(model.successors)
             pooled.total_cost += model.total_cost
+        delivered = [
+            float(to_open.project(s.features)[0]) for s in pooled.successors
+        ]
         summary[family] = {
+            "delivered_rmsd": delivered,
             "counts": {o.value: c for o, c in pooled.counts.items()},
             "success": pooled.probs().get(Outcome.SUCCESS, 0.0),
             "per_state": per_state,
@@ -249,14 +286,27 @@ def main() -> int:
 
     lines.append("## Outcome distributions")
     lines.append("")
-    lines.append("| implementation | success | per start state | outcomes | steps |")
-    lines.append("| --- | --- | --- | --- | --- |")
+    start_rmsd = float(to_open.project(starts[0].features)[0])
+    lines.append("| implementation | success | per start state | "
+                 "RMSD to open reached | outcomes | steps |")
+    lines.append("| --- | --- | --- | --- | --- | --- |")
     for family, data in summary.items():
+        rmsds = data["delivered_rmsd"]
+        reached = (f"{np.mean(rmsds):.2f} A (best {min(rmsds):.2f})"
+                   if rmsds else "-")
         lines.append(
             f"| {family} | **{data['success']:.2f}** | "
             f"{', '.join(f'{p:.2f}' for p in data['per_state'])} | "
-            f"{data['counts']} | {int(data['cost']):,} |"
+            f"{reached} | {data['counts']} | {int(data['cost']):,} |"
         )
+    lines.append("")
+    lines.append(
+        f"Start RMSD to the open crystal is {start_rmsd:.2f} A; the open basin "
+        f"sits near 2.7 A, so a complete opening would reach roughly that. "
+        f"The event requires a {RMSD_DELTA_A} A reduction, and the column "
+        f"above reports what was actually delivered -- the number the "
+        f"superseded run never measured."
+    )
     lines.append("")
 
     biased = summary[f"biased k={BIAS_K:.0f} kJ/mol/nm^2"]
@@ -282,7 +332,7 @@ def main() -> int:
     lines.append("")
 
     lines.append("## Relaxation persistence")
-    relax = RelaxAction(space=theta, tolerance=DELTA_DEG,
+    relax = RelaxAction(space=theta, tolerance=RELAX_TOLERANCE_DEG,
                         n_steps=relax_steps, n_replicas=n_replicas)
     for family, data in summary.items():
         successors = [

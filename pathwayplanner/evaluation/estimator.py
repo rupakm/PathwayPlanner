@@ -33,6 +33,36 @@ class OutcomeModel:
         n = self.n
         return {o: c / n for o, c in self.counts.items()} if n else {}
 
+    def js_pvalue(
+        self, other: "OutcomeModel", n_resamples: int = 5000, seed: int = 0
+    ) -> float:
+        """How surprising this pair's divergence is if both came from one
+        distribution.
+
+        An absolute threshold on JS divergence is not interpretable: with
+        30 executions per batch, two batches drawn from the *same*
+        distribution already have a median divergence near 0.02 and a 90th
+        percentile near 0.06, so a gate of 0.1 passes almost anything. This
+        pools the two batches, resamples pairs of the same sizes from the
+        pooled distribution, and returns the fraction whose divergence
+        equals or exceeds the observed one. Large means reproducible;
+        small means the two batches disagree more than sampling explains.
+        """
+        rng = np.random.default_rng(seed)
+        outcomes = list(self.counts.elements()) + list(other.counts.elements())
+        n_a, n_b = self.n, other.n
+        if not outcomes or n_a == 0 or n_b == 0:
+            return 1.0
+        observed = self.js_divergence(other)
+        indices = np.arange(len(outcomes))
+        exceed = 0
+        for _ in range(n_resamples):
+            draw = rng.choice(indices, size=n_a + n_b, replace=True)
+            a = OutcomeModel(counts=Counter(outcomes[i] for i in draw[:n_a]))
+            b = OutcomeModel(counts=Counter(outcomes[i] for i in draw[n_a:]))
+            exceed += a.js_divergence(b) >= observed - 1e-12
+        return exceed / n_resamples
+
     def js_divergence(self, other: "OutcomeModel") -> float:
         """Jensen-Shannon divergence (base 2, in [0, 1]) between outcome
         distributions."""

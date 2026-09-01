@@ -1,52 +1,33 @@
 {
-  "biased k=250 kJ/mol/nm^2": {
-    "counts": {
-      "success": 26,
-      "partial": 4
-    },
-    "success": 0.8666666666666667,
-    "per_state": [
-      0.6,
-      1.0,
-      1.0
-    ],
-    "cost": 1500000.0
-  },
-  "biased k=1000 kJ/mol/nm^2": {
-    "counts": {
-      "success": 30
-    },
-    "success": 1.0,
-    "per_state": [
-      1.0,
-      1.0,
-      1.0
-    ],
-    "cost": 1500000.0
-  },
   "biased k=2000 kJ/mol/nm^2": {
+    "delivered_rmsd": [
+      4.531098469189323,
+      4.284112294429497,
+      4.134295194477076,
+      3.9388829703638297,
+      4.293640961992228,
+      4.183393435204299
+    ],
     "counts": {
-      "success": 30
+      "success": 6
     },
     "success": 1.0,
     "per_state": [
       1.0,
-      1.0,
       1.0
     ],
-    "cost": 1500000.0
+    "cost": 60000.0
   },
   "unbiased (null model)": {
+    "delivered_rmsd": [],
     "counts": {
-      "failure": 29,
-      "partial": 1
+      "failure": 6
     },
     "success": 0.0,
     "per_state": [
       0.0,
-      0.0,
       0.0
     ],
-    "cost": 1500000.0
+    "cost": 60000.0
   }
 }

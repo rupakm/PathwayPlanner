@@ -184,12 +184,12 @@ def main() -> int:
         return Lift(run_and_verify), start_state(bk)
 
     strategies = {
-        "(a) single CV, net A->B (+y)": direct_step,
-        "(b) single CV, leg-1 (+x)": leg1_only_step,
+        "(a) single linear CV, net A->B (+y)": direct_step,
+        "(b) single linear CV, leg-1 (+x)": leg1_only_step,
         "(c) three-leg recipe (+x, +y, -x)": recipe_step,
     }
 
-    lines = ["# Z-channel results: single CV vs direction-changing recipe", ""]
+    lines = ["# Z-channel results: single linear CV vs direction-changing recipe", ""]
     lines.append(
         f"Parameters: kT={kT}, dt=1e-3, force={force}, {n_steps} steps/leg, "
         f"{n_replicas} replicas, N={n_runs} runs/strategy; equal total budget "
@@ -227,6 +227,15 @@ def main() -> int:
     lines.append(f"- Gate: {'PASS' if gate else 'FAIL'} — a plan that changes "
                  "direction mid-path, with a separate CV per leg, is required "
                  "and sufficient on this landscape.")
+    lines.append("")
+    lines.append(
+        "Scope of the claim. This defeats every *linear* CV by construction, "
+        "since legs 1 and 3 have opposite x direction. It does not defeat all "
+        "single coordinates: arc length along the polyline is one nonlinear CV "
+        "that would drive the whole path. The landscape was also engineered to "
+        "make the point, so it is an existence proof that composition can be "
+        "necessary, not evidence about how often real systems are like this."
+    )
     (HERE / "results.md").write_text("\n".join(lines) + "\n")
     print("\n".join(lines))
     return 0 if gate else 1

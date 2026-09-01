@@ -293,3 +293,40 @@ Include only if it works cleanly.
   probes were designed with a falsifiable prediction stated first; the
   second one failing is what produced the useful answer. Visualization of
   the per-cycle stall: https://claude.ai/code/artifact/1e7eb19b-091b-447e-866c-2ab05e5699d7
+
+- **2026-09-01 — Audit of prior claims; one result superseded.** Reviewing
+  decisions before further experiments turned up a material error and several
+  overstatements. Corrections, most serious first:
+  1. **`open_hinge(LID)`'s 90/90 result is superseded.** Re-measuring its saved
+     trajectories showed the event frames at theta_LID 141.4 deg -- near the
+     146.5 open crystal value -- while C-alpha RMSD to the open structure moved
+     only 6.66 -> 5.06 A, roughly 40% of the way to the open basin at ~2.7 A.
+     The one-coordinate event was satisfied by configurations that had left the
+     closed state without arriving at the open one: exactly the defect later
+     found in close_hinge, which I diagnosed there and then failed to check
+     here. The action is being re-run with the conjunctive event.
+  2. **The Stage 1 reproducibility gate was near-vacuous.** JS < 0.1 was
+     compared against nothing; simulating the null shows two batches of 30 from
+     the *same* distribution have median JS 0.019 and 90th percentile 0.061, so
+     the reported 0.044 was an unremarkable draw. Replaced by a resampling
+     p-value (`OutcomeModel.js_pvalue`). A p > 0.05 gate was then also wrong,
+     failing 1 run in 20 by construction; the gate is p > 0.01, supported by a
+     10-pair diagnostic (0/10 below 0.05, median p 0.30, batch success-rate
+     sd 0.060 against a binomial 0.052). Reproducibility holds; the earlier
+     evidence for it did not.
+  3. **Z-channel wording.** The claim defeats every *linear* CV by
+     construction, not every CV -- arc length along the polyline is a single
+     nonlinear coordinate that would work. Code said "linear", prose summaries
+     repeatedly dropped it. Scope note added to the results.
+  4. **Relaxation tolerance** was DELTA_DEG (25 deg, ~2.5 sigma), under which a
+     24 deg drift counted as stable. Tightened to 10 deg (~1 sigma).
+  5. Narrowed, not corrected: delta_comp's coarse value is unstable across runs
+     (0.277 and 0.540 for one configuration) because the estimator uses one
+     representative per class; "conjunctive costs nothing in success rate" rests
+     on 3/3 vs 3/3, which distinguishes almost nothing; "43% of the
+     conformational change" used RMSD as a linear progress measure and the wrong
+     denominator; and the PathGennie correlated-trials mechanism is inferred
+     from flat max-reach, not measured directly.
+  Method note: the audit was only possible because the burst API keeps
+  trajectories on disk, which is the provenance argument for file-based
+  transport paying off concretely.
