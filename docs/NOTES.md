@@ -330,3 +330,37 @@ Include only if it works cleanly.
   Method note: the audit was only possible because the burst API keeps
   trajectories on disk, which is the provenance argument for file-based
   transport paying off concretely.
+- **2026-09-01 — The rigor anchor was never applied to AdK; Stage 3 committor
+  experiment designed to fix that.** An audit prompted by the question "where
+  are we using the committor machinery?" found: the grid-exact solver is used
+  on toy landscapes, rollout counting on alanine dipeptide, and Trails-MD's
+  `TabularCommittor` -- named in PLAN.md and NOTES.md as the non-negotiable
+  rigor anchor -- in **zero lines of code**. On AdK the word appears twice, in
+  comments about start-state decorrelation. Every AdK claim rests on
+  relaxation persistence.
+  Designed `docs/stage3-committor-experiment.md` to close this and to target
+  a genuinely open question rather than a demonstration: estimate
+  q(theta_LID, theta_NMP) and read the LID-first / NMP-first ordering off the
+  shape of the q = 0.5 curve. Competing recipes cannot settle this -- they
+  measure which restraint works, a fact about our biasing, which is the exact
+  confound Huang, Ozkirimli & Post (JCTC 2009) identified when they found the
+  progress-variable choice dominates outcomes more than method choice.
+  Design points worth keeping: sampling must draw from several independent
+  biasing directions, with the theta_LID/theta_NMP correlation as a *gate*
+  (|r| < 0.7), because the alanine dipeptide analysis was retracted for
+  exactly this confound at r = -0.855; estimation runs two routes, the cheap
+  TabularCommittor surface on pooled bursts and expensive direct rollouts at
+  a dozen cells, compared via `heldout_bellman_residual` and `calibrate`; and
+  the decisive self-test is whether within-cell q-hat spread exceeds binomial
+  noise, i.e. whether the committor is a function of these two coordinates at
+  all. A negative there would be the more valuable result -- it would say the
+  standard two-angle description of AdK is not a reaction coordinate.
+  Correction recorded: I earlier described Jana et al. (JCP 2011, LID opens
+  before NMP) and Beckstein et al. (JMB 2009, barrier on NMP, LID barrierless)
+  as disagreeing. They are compatible -- easy LID opening, then a
+  barrier-carrying NMP opening. The real disagreement is broader, e.g. Kerns
+  et al. (NSMB 2015) decoupling lid opening from catalysis.
+  Also recorded: PathGennie's ratcheting granularity is set by tau1/tau2, but
+  matching DIMS needs a different architecture, not a retuning -- DIMS filters
+  per step within one continuous trajectory (a rejection costs one step),
+  while the swarm driver pays max_trial*tau1 + tau2 steps per rejected cycle.
