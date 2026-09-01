@@ -364,3 +364,49 @@ Include only if it works cleanly.
   matching DIMS needs a different architecture, not a retuning -- DIMS filters
   per step within one continuous trajectory (a rejection costs one step),
   while the swarm driver pays max_trial*tau1 + tau2 steps per rejected cycle.
+- **2026-09-01 — Research repositioned; Delta_comp demoted. See `docs/positioning.md`.**
+  Two literature reviews settled what is crowded and what is open.
+  CROWDED, do not build: RL for adaptive sampling / restart selection (REAP,
+  MA-REAP, AdaptiveBandit, FAST + a 2023 review); RL and stochastic optimal
+  control for committors and transition paths (Limmer, Garrahan,
+  Vanden-Eijnden, Welling, Hummer/Bolhuis) -- this is our related work, not
+  our contribution; LLM-guided evolutionary program search as a generic
+  framework; LLM agents driving MD tooling.
+  OPEN: mechanism as an executable compositional program (six targeted
+  searches, zero occupants -- every symbolic object in the field is a
+  *formula over observables*, scalar-valued; a recipe is a *sequence of
+  operations*, a different type); LLM-emitted enhanced-sampling protocols
+  (zero papers; MDGym and MDCrow scope enhanced sampling out *by name*);
+  a symbolic discrete action vocabulary for RL in molecular simulation.
+  Key repositioning: the incumbent to argue against is MSM/TPT pathway
+  decomposition (Noe et al. PNAS 2009), the existing way of saying "A then
+  B" -- NOT VAMPnets. A recipe is not a competitor to a CV; a CV is a scalar
+  and a recipe is a program. Do not lead with interpretability: AIMMD
+  (Jung/Covino/Bolhuis/Hummer, Nat Comput Sci 2023) already does symbolic
+  distillation of learned mechanisms, and Toepfer et al. found sparse
+  symbolic committors *fail* (all four dihedrals needed).
+  The strongest asset we did not know we had: **our typed outcomes are
+  natively an evaluation cascade.** Cost arithmetic -- ~15 GPU-h per recipe
+  evaluation makes classical GP (~17 GPU-years/run) infeasible, while the
+  AlphaEvolve regime (thousands of samples, cascade-gated, ~30k GPU-h) is
+  affordable. AlphaEvolve hand-builds its cascade; ours falls out of the
+  type system, since a terminal failure aborts a program before later
+  actions run. Evaluation-cascade design for expensive stochastic simulators
+  is "named by AlphaEvolve, solved by nobody".
+  Answer to the "why not just let an LLM emit the bias" objection, and it is
+  not ours: Cronin's XDL line (Science 2019, 2020; Nat Synth 2024) plus
+  Pagel/Jirasek/Cronin arXiv:2410.06384, where the DSL acts as a *safety
+  envelope* -- a proposed step not expressible in the language cannot be
+  executed. Corroborated by MDGym's funnel: best agent on hard tasks ran the
+  simulation 60% of the time, answered 24%, was correct 4%.
+  Action-vocabulary work recorded in positioning.md sec. 4. Two substantive
+  gaps found: (i) our event specs violate the "specifiable without the
+  answer" criterion once RMSD-to-target is required -- proposed fix is
+  **rigid-body coherence**, requiring the moving body to preserve internal
+  geometry while its relative position changes, which is intrinsic, needs no
+  endpoint, and would have caught the failure RMSD caught; (ii) the
+  combinators cannot express *concurrency*, so we cannot state the
+  "concerted" hypothesis at all -- a `Par` form and a `hold` form are
+  requirements, not enhancements. Also missing at the intervention layer: a
+  contact-count CV (blocks weaken_interface) and an orientation restraint
+  (blocks rotate_domain).
